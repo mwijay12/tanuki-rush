@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'app_theme.dart';
+import 'notification_service.dart';
 
 /// Hosts the game. The WebView only ever talks to the loopback server this app
 /// started, so every navigation to another origin is blocked.
@@ -95,6 +96,49 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Exposes native capabilities to the game via
+  /// `window.flutter_inappwebview.callHandler(name, ...)`. The web build calls
+  /// these through src/platform.js and falls back to Web APIs when absent.
+  void _registerBridge(InAppWebViewController controller) {
+    controller.addJavaScriptHandler(
+      handlerName: 'haptic',
+      callback: (args) {
+        final type = args.isNotEmpty ? '${args.first}' : 'light';
+        switch (type) {
+          case 'heavy':
+          case 'error':
+            HapticFeedback.heavyImpact();
+            break;
+          case 'medium':
+          case 'success':
+            HapticFeedback.mediumImpact();
+            break;
+          case 'select':
+            HapticFeedback.selectionClick();
+            break;
+          default:
+            HapticFeedback.lightImpact();
+        }
+        return null;
+      },
+    );
+
+    controller.addJavaScriptHandler(
+      handlerName: 'requestNotifications',
+      callback: (args) => NotificationService.instance.requestPermission(),
+    );
+
+    controller.addJavaScriptHandler(
+      handlerName: 'scheduleStreakReminder',
+      callback: (args) {
+        final map = args.isNotEmpty && args.first is Map ? args.first as Map : const {};
+        final streak = (map['streak'] as num?)?.toInt() ?? 0;
+        NotificationService.instance.scheduleStreakReminder(streak);
+        return null;
+      },
+    );
+  }
+
   Future<void> _reload() async {
     setState(() {
       _fatalError = null;
@@ -121,7 +165,10 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
               child: InAppWebView(
                 initialUrlRequest: URLRequest(url: WebUri(widget.gameUri.toString())),
                 initialSettings: _settings,
-                onWebViewCreated: (controller) => _controller = controller,
+                onWebViewCreated: (controller) {
+                  _controller = controller;
+                  _registerBridge(controller);
+                },
                 onLoadStop: (_, __) {
                   if (!mounted) return;
                   setState(() => _firstFramePainted = true);

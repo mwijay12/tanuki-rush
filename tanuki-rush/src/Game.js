@@ -20,6 +20,7 @@ import { Objects } from './objects/Objects.js';
 import { Truck } from './objects/Truck.js';
 import { HUD, formatTime } from './ui/HUD.js';
 import { tickStreak, activeStreak, dailyGoal, tierInfo, todayStr } from './progression.js';
+import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, requestNotifications } from './platform.js';
 import { setAnisotropy } from './core/textures.js';
 import { Bot } from './core/Bot.js';
 
@@ -210,7 +211,7 @@ export class Game {
   _wireEvents() {
     const ev = this.events;
     const A = () => this.audio;
-    ev.on('jump', () => A().play('jump'));
+    ev.on('jump', () => { A().play('jump'); haptic('light'); });
     ev.on('land', ({ impact }) => {
       if (impact > 10) {
         A().play('land', { volume: clamp(impact / 30, 0.3, 1) });
@@ -253,10 +254,10 @@ export class Game {
       }
     });
     ev.on('boostEnd', () => A().setBoost(false));
-    ev.on('homing', () => A().play('homing'));
+    ev.on('homing', () => { A().play('homing'); haptic('medium'); });
     ev.on('airdash', () => { A().play('airdash'); this.rig.kick(3, 1); });
     ev.on('homingHit', (e) => { this.objects.destroyEnemy(e, 'homing'); this.rig.shake(0.25, 0.15); this.input.rumble(0.3, 0.6, 90); });
-    ev.on('enemyDown', () => { A().play('enemyPop'); this.enemiesDown++; });
+    ev.on('enemyDown', () => { A().play('enemyPop'); this.enemiesDown++; haptic('medium'); });
     ev.on('dashPanel', () => { A().play('dashPanel'); this.rig.kick(5, 1.5); this.post.doFlash(0xfff2a0, 0.12); });
     ev.on('ramp', ({ big }) => { A().play('ramp'); if (big) this.rig.kick(6, 2); });
     ev.on('trick', ({ count }) => {
@@ -295,7 +296,7 @@ export class Game {
       if (!this.bot) this.cine = { t: 0, dur: 1.7, scale: 0.3 };
     });
     ev.on('truckHorn', () => A().play('truckHorn'));
-    ev.on('truckHit', () => { A().play('crash'); this.rig.shake(1.2, 0.5); this.input.rumble(1, 1, 400); });
+    ev.on('truckHit', () => { A().play('crash'); this.rig.shake(1.2, 0.5); this.input.rumble(1, 1, 400); haptic('heavy'); });
     ev.on('truckDown', () => {
       A().play('crash');
       this.hud.popup('TRUCK DOWN!  +2000', '#ffb03a');
@@ -367,7 +368,12 @@ export class Game {
   }
 
   _openSettings() {
-    this.hud.showSettings({ ...this._settingsBindings(), onClose: () => this.hud.hideSettings() });
+    this.hud.showSettings({
+      ...this._settingsBindings(),
+      haptics: hapticsEnabled(),
+      onHaptics: () => { const on = !hapticsEnabled(); setHaptics(on); if (on) haptic('select'); return on; },
+      onClose: () => this.hud.hideSettings(),
+    });
   }
 
   toTitle() {
@@ -405,7 +411,7 @@ export class Game {
     this.audio.playMusic('title');
     if (!localStorage.getItem('tanuki_intro')) {
       this.state = 'title';
-      this.hud.showIntro(() => localStorage.setItem('tanuki_intro', '1'));
+      this.hud.showIntro(() => { localStorage.setItem('tanuki_intro', '1'); requestNotifications(); });
     }
   }
 
@@ -420,6 +426,8 @@ export class Game {
     this.audio.play('uiSelect');
     this.streak = tickStreak(this.save); this._writeSave();
     this.dailyGoal = dailyGoal();
+    keepAwake(true);
+    scheduleStreakReminder(this.streak);
     this.resetRun();
     this.state = 'countdown';
     this.countdown = 3.6;
@@ -517,6 +525,7 @@ export class Game {
     const goalJustDone = goalDone && !goalAlready;
     if (goalJustDone && !testRun) { this.save.dailyDone = goal.dateStr; }
     this._writeSave();
+    keepAwake(false);
     this.hud.showHUD(false);
     this.hud.showResults({ time: t, leaves: this.player.leaves, enemies: this.enemiesDown, score, timeBonus, leafBonus, total, rank, newRecord,
       tier, streak: this.streak || activeStreak(this.save), goal: { label: goal.label, done: goalDone, justDone: goalJustDone } }, {

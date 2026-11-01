@@ -220,7 +220,7 @@ export class HUD {
 
   // ------------------------------------------------------------------ settings
   /** Modal settings panel. Purely a view: every change is applied by the caller. */
-  showSettings({ quality, onQuality, muted, onMute, softFx, onSoftFx, onClose }) {
+  showSettings({ quality, onQuality, muted, onMute, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false }) {
     const qLabel = { low: 'LOW', mid: 'MID', high: 'HIGH' };
     const sensLabel = (d) => (d <= 32 ? 'HIGH' : d >= 70 ? 'LOW' : 'MID');
     const sensStep = (dir) => {
@@ -242,6 +242,8 @@ export class HUD {
           <span class="set-ctl"><button class="btn" data-softfx="1">${softFx ? 'REDUCED' : 'FULL'}</button></span></div>
         <div class="set-row"><span class="set-label">STEER SENSITIVITY<span class="set-hint">touch only</span></span>
           <span class="set-ctl"><button class="btn" data-sens="-1">−</button><button class="btn" data-sensval="1">${sensLabel(this.steerDiv)}</button><button class="btn" data-sens="1">+</button></span></div>
+        ${haptics === null ? '' : `<div class="set-row"><span class="set-label">HAPTICS<span class="set-hint">vibration</span></span>
+          <span class="set-ctl"><button class="btn" data-haptics="1">${haptics ? 'ON' : 'OFF'}</button></span></div>`}
       </div>
       <button class="btn big" data-close="1">BACK</button>
       <div class="credit">© 2026 Mwijay · game by tanuu5 · MIT</div>`;
@@ -253,6 +255,8 @@ export class HUD {
       if (m) { e.stopPropagation(); m.textContent = onMute() ? 'OFF' : 'ON'; return; }
       const f = e.target.closest('[data-softfx]');
       if (f) { e.stopPropagation(); f.textContent = onSoftFx() ? 'REDUCED' : 'FULL'; return; }
+      const h = e.target.closest('[data-haptics]');
+      if (h) { e.stopPropagation(); h.textContent = onHaptics() ? 'ON' : 'OFF'; return; }
       const s = e.target.closest('[data-sens]');
       if (s) {
         e.stopPropagation();

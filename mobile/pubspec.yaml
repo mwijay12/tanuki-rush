@@ -11,6 +11,9 @@ dependencies:
     sdk: flutter
   # Version is pinned by `flutter pub add` — see pubspec.lock for the resolved one.
   flutter_inappwebview: ^6.1.5
+  # Local streak reminder (no server). timezone is required for zonedSchedule.
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
 
 dev_dependencies:
   flutter_test:
