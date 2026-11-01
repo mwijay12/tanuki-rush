@@ -37,3 +37,9 @@ the app renders identically without a network connection.
 ## Flutter / Dart
 
 Built with the Flutter SDK (BSD 3-Clause) and the `flutter_inappwebview` plugin (MIT).
+
+## Key art
+
+`tanuki-rush/public/art/title-bg.png` and `mark.png` were generated for this
+edition with an AI image model and carry no third-party rights. They replace
+nothing from the original game, which ships no image assets at all.

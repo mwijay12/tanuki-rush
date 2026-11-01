@@ -67,6 +67,10 @@ export class HUD {
     root.appendChild(this.intro);
 
     this.loading = el('div', 'loading', 'LOADING…');
+    this.loading.style.backgroundImage =
+      "linear-gradient(rgba(10,26,68,.86), rgba(10,26,68,.96)), url('./art/title-bg.png')";
+    this.loading.style.backgroundSize = 'cover';
+    this.loading.style.backgroundPosition = 'center';
     root.appendChild(this.loading);
 
     this._last = {};
@@ -168,7 +172,7 @@ export class HUD {
   showTitle({ onStart, quality, onQuality, best, muted, onMute, softFx = false, onSoftFx = () => false, onSettings = () => {} }) {
     const touch = this.isTouch;
     this.title.innerHTML = `
-      <div class="logo"><span class="l1">TANUKI <span class="acc">RUSH</span></span><span class="l2">MOBILE EDITION · MADE IN TZ</span></div>
+      <div class="logo"><img class="logo-mark" src="./art/mark.png" alt="" draggable="false" /><span class="l1">TANUKI <span class="acc">RUSH</span></span><span class="l2">MOBILE EDITION · MADE IN TZ</span></div>
       <div class="stage-card">STAGE 1 — HILLSIDE CITY</div>
       <div class="press">${touch ? 'TAP TO START' : 'PRESS ENTER / CLICK'}</div>
       <div class="controls">
@@ -192,6 +196,8 @@ export class HUD {
       ${best ? `<div class="stage-card">BEST  ${best}</div>` : ''}
       ${touch ? '<div class="rotate-hint">📱 Best in landscape</div>' : ''}
       <div class="credit">© 2026 Mwijay · game by tanuu5 · MIT</div>`;
+    this.title.style.backgroundImage =
+      "linear-gradient(rgba(6,14,40,.55), rgba(6,14,40,.93) 78%), url('./art/title-bg.png')";
     this.title.classList.remove('hidden');
     this.title.onclick = (e) => {
       const q = e.target.closest('[data-q]');

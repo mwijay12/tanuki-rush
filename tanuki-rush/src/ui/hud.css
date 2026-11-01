@@ -244,3 +244,10 @@ body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color
 .intro-t { font-weight: 900; letter-spacing: .14em; font-size: 14px; }
 .intro-d { font-size: 12.5px; color: rgba(255,255,255,.74); margin-top: 3px; line-height: 1.5; }
 .intro-foot { font-size: 11.5px; color: rgba(255,255,255,.55); max-width: 560px; line-height: 1.6; }
+
+/* ---------------- key art ---------------- */
+.screen.title { background-size: cover; background-position: center right; background-repeat: no-repeat; }
+.loading { background-size: cover !important; background-position: center !important; }
+.logo-mark { display: block; width: 72px; height: 72px; margin: 0 auto 10px; border-radius: 18px;
+  box-shadow: 0 0 0 3px rgba(255,198,41,.35), 0 10px 30px rgba(0,0,0,.45); }
+@media (max-height: 420px) { .logo-mark { width: 52px; height: 52px; margin-bottom: 4px; } }
