@@ -251,3 +251,25 @@ body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color
 .logo-mark { display: block; width: 72px; height: 72px; margin: 0 auto 10px; border-radius: 18px;
   box-shadow: 0 0 0 3px rgba(255,198,41,.35), 0 10px 30px rgba(0,0,0,.45); }
 @media (max-height: 420px) { .logo-mark { width: 52px; height: 52px; margin-bottom: 4px; } }
+
+/* ---------------- retention UI ---------------- */
+.meta-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 4px 0 2px; }
+.chip { font-size: 12px; font-weight: 800; letter-spacing: .05em; padding: 6px 12px; border-radius: 999px;
+  background: rgba(255,255,255,.08); border: 1.5px solid rgba(255,255,255,.18); color: #fff; }
+.chip.streak { background: rgba(255,120,40,.16); border-color: rgba(255,150,60,.55); color: #ffd09a; }
+.chip.daily { background: rgba(255,198,41,.12); border-color: rgba(255,198,41,.45); color: #ffe39a; max-width: 92vw;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.daily.done { background: rgba(80,200,120,.16); border-color: rgba(100,220,150,.5); color: #b6f0c8; }
+
+.next-tier { width: min(420px, 86%); margin: 6px auto 0; }
+.next-tier.maxed { text-align: center; color: var(--hud-yellow); font-weight: 800; letter-spacing: .05em; font-size: 14px; }
+.nt-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: rgba(255,255,255,.8); margin-bottom: 5px; }
+.nt-bar { height: 10px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
+.nt-bar i { display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #ffc629, #ff8a3d); transition: width .9s cubic-bezier(.2,.8,.2,1); }
+
+.daily-banner { width: min(460px, 88%); margin: 10px auto 0; text-align: center; font-size: 13px; font-weight: 700;
+  padding: 9px 14px; border-radius: 12px; background: rgba(255,198,41,.1); border: 1.5px solid rgba(255,198,41,.4);
+  color: #ffe39a; line-height: 1.4; }
+.daily-banner.done { background: rgba(80,200,120,.14); border-color: rgba(100,220,150,.5); color: #b6f0c8; }
+.streak-line { margin-top: 8px; font-size: 12.5px; color: #ffcf9e; font-weight: 600; }

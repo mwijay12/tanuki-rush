@@ -19,6 +19,7 @@ import { PostFX } from './fx/PostFX.js';
 import { Objects } from './objects/Objects.js';
 import { Truck } from './objects/Truck.js';
 import { HUD, formatTime } from './ui/HUD.js';
+import { tickStreak, activeStreak, dailyGoal, tierInfo, todayStr } from './progression.js';
 import { setAnisotropy } from './core/textures.js';
 import { Bot } from './core/Bot.js';
 
@@ -387,6 +388,8 @@ export class Game {
       quality: this.quality,
       onQuality: (q) => this.applyQuality(q),
       best: this.save.bestTime ? `${formatTime(this.save.bestTime)}  ／  ${this.save.bestScore || 0} pts  ／  RANK ${this.save.bestRank || '-'}` : '',
+      streak: activeStreak(this.save),
+      daily: { label: dailyGoal().label, done: this.save.dailyDone === todayStr() },
       muted: this.muted,
       onMute: () => { this.muted = !this.muted; this.save.muted = this.muted; this._writeSave(); this.audio.setMuted(this.muted); return this.muted; },
       softFx: this.fxScale < 1,
@@ -415,6 +418,8 @@ export class Game {
     await this._initAudio();
     this._starting = false;
     this.audio.play('uiSelect');
+    this.streak = tickStreak(this.save); this._writeSave();
+    this.dailyGoal = dailyGoal();
     this.resetRun();
     this.state = 'countdown';
     this.countdown = 3.6;
@@ -504,9 +509,17 @@ export class Game {
     const newRecord = !testRun && (!this.save.bestTime || t < this.save.bestTime);
     if (newRecord) this.save.bestTime = t;
     if (!testRun && (!this.save.bestScore || total > this.save.bestScore)) { this.save.bestScore = total; this.save.bestRank = rank; }
+    const tier = tierInfo(total);
+    const goal = this.dailyGoal || dailyGoal();
+    const goalRun = { leaves: this.player.leaves, enemies: this.enemiesDown, time: t, total, rank };
+    const goalAlready = this.save.dailyDone === goal.dateStr;
+    const goalDone = goal.test(goalRun);
+    const goalJustDone = goalDone && !goalAlready;
+    if (goalJustDone && !testRun) { this.save.dailyDone = goal.dateStr; }
     this._writeSave();
     this.hud.showHUD(false);
-    this.hud.showResults({ time: t, leaves: this.player.leaves, enemies: this.enemiesDown, score, timeBonus, leafBonus, total, rank, newRecord }, {
+    this.hud.showResults({ time: t, leaves: this.player.leaves, enemies: this.enemiesDown, score, timeBonus, leafBonus, total, rank, newRecord,
+      tier, streak: this.streak || activeStreak(this.save), goal: { label: goal.label, done: goalDone, justDone: goalJustDone } }, {
       onRetry: () => this.startRun(),
       onTitle: () => this.toTitle(),
     });

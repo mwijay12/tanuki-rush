@@ -169,12 +169,16 @@ export class HUD {
   clearHint() { if (this.hintEl) this.hintEl.classList.remove('show'); }
 
   // ------------------------------------------------------------------ title
-  showTitle({ onStart, quality, onQuality, best, muted, onMute, softFx = false, onSoftFx = () => false, onSettings = () => {} }) {
+  showTitle({ onStart, quality, onQuality, best, muted, onMute, softFx = false, onSoftFx = () => false, onSettings = () => {}, streak = 0, daily = null }) {
     const touch = this.isTouch;
     this.title.innerHTML = `
       <div class="logo"><img class="logo-mark" src="./art/mark.png" alt="" draggable="false" /><span class="l1">TANUKI <span class="acc">RUSH</span></span><span class="l2">MOBILE EDITION · MADE IN TZ</span></div>
       <div class="stage-card">STAGE 1 — HILLSIDE CITY</div>
       <div class="press">${touch ? 'TAP TO START' : 'PRESS ENTER / CLICK'}</div>
+      <div class="meta-row">
+        ${streak > 0 ? `<span class="chip streak">🔥 ${streak}-DAY STREAK</span>` : ''}
+        ${daily ? `<span class="chip daily ${daily.done ? 'done' : ''}">${daily.done ? '✓ DAILY DONE' : '◆ DAILY'} · ${daily.label}</span>` : ''}
+      </div>
       <div class="controls">
         ${touch
           ? `<span class="k">DRAG LEFT</span><span>Steer left / right</span><span class="k">JUMP</span><span>Jump · again in air: homing attack</span><span class="k">BOOST</span><span>Boost (uses the gauge)</span><span class="k">II</span><span>Pause</span>`
@@ -335,6 +339,12 @@ export class HUD {
     this.results.innerHTML = `
       <div class="res-title">COURSE CLEAR!</div>
       <div class="res-table">${rows.map(([k, v], i) => `<div class="k" style="animation-delay:${0.25 + i * 0.18}s">${k}</div><div class="v" style="animation-delay:${0.25 + i * 0.18}s">${v}</div>`).join('')}</div>
+      ${r.tier && r.tier.next ? `<div class="next-tier">
+        <div class="nt-head"><span>NEXT RANK ${r.tier.next}</span><span>${r.tier.need.toLocaleString()} pts to go</span></div>
+        <div class="nt-bar"><i style="width:${Math.round(r.tier.progress * 100)}%"></i></div>
+      </div>` : (r.tier ? '<div class="next-tier maxed">★ MAX RANK — you topped the chart</div>' : '')}
+      ${r.goal ? `<div class="daily-banner ${r.goal.done ? 'done' : ''}">${r.goal.justDone ? '🎉 DAILY GOAL COMPLETE' : r.goal.done ? '✓ DAILY GOAL' : '◆ DAILY GOAL'} · ${r.goal.label}</div>` : ''}
+      ${r.streak > 0 ? `<div class="streak-line">🔥 ${r.streak}-day streak — come back tomorrow to keep it alive</div>` : ''}
       <div class="res-actions">
         <button class="btn big" data-a="retry">RETRY</button>
         <button class="btn big" data-a="title">TITLE</button>
