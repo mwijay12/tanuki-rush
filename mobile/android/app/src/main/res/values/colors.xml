@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches GameColors.night so the pre-Flutter window never flashes white
+         during a cold start. -->
+    <color name="game_night">#0A1A44</color>
+</resources>

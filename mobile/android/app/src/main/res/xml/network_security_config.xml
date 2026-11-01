@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The game is bundled inside the APK; the WebView talks to an HTTP server this
+  app starts on 127.0.0.1. That loopback hop is the only cleartext traffic we
+  permit. Everything else stays blocked, so an accidental remote request fails
+  loudly instead of silently working.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

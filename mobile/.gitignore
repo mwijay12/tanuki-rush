@@ -1,0 +1,25 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+pubspec.lock.bak
+
+# Android
+android/local.properties
+android/.gradle/
+android/key.properties
+*.jks
+*.keystore
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Generated: recreate with `python3 tools/build_web_assets.py`
+# (kept in git on purpose so a clone builds without npm — remove these two lines
+#  if you prefer a clean source-only repository)
+# assets/web/

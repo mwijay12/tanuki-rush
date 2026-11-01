@@ -1,0 +1,18 @@
+# Upstream game build inputs/outputs
+tanuki-rush/node_modules/
+tanuki-rush/dist/
+
+# Flutter build artefacts
+mobile/build/
+mobile/.dart_tool/
+
+# Keys and local SDK paths
+*.jks
+*.keystore
+mobile/android/local.properties
+
+# OS noise
+.DS_Store
+
+# Local download page + built APK — attach releases to GitHub instead of committing binaries
+dist/

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TANUKI RUSH — Audio Test</title>
+  <style>
+    :root {
+      --bg: #14161c; --panel: #1e2230; --line: #2d3346; --text: #e8ecf5; --dim: #9aa3b8;
+      --accent: #ffb432; --accent2: #4fc3ff; --on: #57d98a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 16px; background: var(--bg); color: var(--text);
+      font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: 0.04em; }
+    h1 span { color: var(--accent); }
+    h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); }
+    .sub { color: var(--dim); margin-bottom: 14px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+    button {
+      background: #2a3044; color: var(--text); border: 1px solid #3a425c; border-radius: 6px;
+      padding: 7px 10px; margin: 0 6px 6px 0; cursor: pointer; font: inherit;
+    }
+    button:hover { border-color: var(--accent2); }
+    button:active { transform: translateY(1px); }
+    button.big { background: var(--accent); color: #1b1300; border: none; font-weight: 700; padding: 10px 18px; }
+    button.toggle.on { background: var(--on); color: #06210f; border-color: var(--on); }
+    .row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+    .row label { width: 110px; color: var(--dim); }
+    .row input[type=range] { flex: 1; min-width: 0; }
+    .row output { width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+    #status {
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent2);
+      background: #0e1016; border: 1px solid var(--line); border-radius: 6px; padding: 8px; white-space: pre-wrap;
+    }
+    .sfx button { min-width: 108px; }
+    .hint { color: var(--dim); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1><span>TANUKI RUSH</span> — audio test bench</h1>
+  <div class="sub">Procedural Web Audio engine (<code>src/audio/AudioEngine.js</code>). Click <b>Init audio</b> first.</div>
+
+  <div class="grid">
+    <section>
+      <h2>Engine</h2>
+      <button id="init" class="big">Init audio</button>
+      <button id="pause">Pause</button>
+      <button id="resume">Resume</button>
+      <button id="mute" class="toggle">Mute</button>
+      <div class="row"><label for="vMaster">Master</label><input id="vMaster" type="range" min="0" max="1" step="0.01" value="0.8" /><output></output></div>
+      <div class="row"><label for="vMusic">Music</label><input id="vMusic" type="range" min="0" max="1" step="0.01" value="0.7" /><output></output></div>
+      <div class="row"><label for="vSfx">SFX</label><input id="vSfx" type="range" min="0" max="1" step="0.01" value="0.9" /><output></output></div>
+      <div id="status">not initialised</div>
+    </section>
+
+    <section>
+      <h2>Music</h2>
+      <button data-music="title">Title</button>
+      <button data-music="stage">Stage</button>
+      <button id="stopMusic">Stop (0.5 s fade)</button>
+      <br />
+      <button data-jingle="clear">Jingle: clear</button>
+      <button data-jingle="fail">Jingle: fail</button>
+      <div class="row"><label for="intensity">Intensity</label><input id="intensity" type="range" min="0" max="1" step="0.01" value="0" /><output></output></div>
+      <div class="hint">Intensity adds 16th hats (&gt;0.1), synth arpeggio (&gt;0.3), extra percussion &amp; tom fills (&gt;0.55) and guitar drive. Changes land on the next beat.</div>
+    </section>
+
+    <section>
+      <h2>Loops</h2>
+      <div class="row"><label for="wind">Wind</label><input id="wind" type="range" min="0" max="1" step="0.01" value="0" /><output></output></div>
+      <div class="row"><label for="truck">Truck</label><input id="truck" type="range" min="0" max="1" step="0.01" value="0" /><output></output></div>
+      <div class="row"><label for="grindX">Grind speed</label><input id="grindX" type="range" min="0" max="1" step="0.01" value="0.5" /><output></output></div>
+      <button id="grind" class="toggle">Grind</button>
+      <button id="boost" class="toggle">Boost</button>
+      <br />
+      <button id="chase">Truck chase demo (8 s)</button>
+      <button id="run">Downhill run demo (6 s)</button>
+    </section>
+
+    <section class="sfx">
+      <h2>SFX</h2>
+      <div class="row"><label for="sVol">volume</label><input id="sVol" type="range" min="0" max="1" step="0.01" value="1" /><output></output></div>
+      <div class="row"><label for="sPitch">pitch</label><input id="sPitch" type="range" min="0.5" max="2" step="0.01" value="1" /><output></output></div>
+      <div class="row"><label for="sPan">pan</label><input id="sPan" type="range" min="-1" max="1" step="0.01" value="0" /><output></output></div>
+      <div id="sfxButtons"></div>
+      <button id="leafCombo">Leaf combo x12 (10/s, rising pitch)</button>
+      <button id="stress">Stress: 40 random SFX in 1 s</button>
+      <button id="countdownSeq">3-2-1-GO</button>
+    </section>
+  </div>
+
+  <script type="module" src="./audio-test.js"></script>
+</body>
+</html>
