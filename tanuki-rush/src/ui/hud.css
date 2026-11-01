@@ -218,3 +218,29 @@ body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color
 .rearview.on { display: block; animation: rearPulse .5s steps(2) infinite; }
 .rearview span { position: absolute; left: 6px; top: 4px; font-weight: 900; font-style: italic; font-size: 13px; letter-spacing: .2em; color: #fff; text-shadow: 2px 2px 0 var(--hud-ink); }
 @keyframes rearPulse { 50% { box-shadow: 0 0 0 3px #ffcc00, 4px 4px 0 3px var(--hud-ink); } }
+
+/* ---------------- settings panel ---------------- */
+.screen.settings { background: rgba(6, 14, 40, .92); gap: 22px; padding: 24px; }
+.set-title { font-size: clamp(26px, 6vw, 44px); font-style: italic; font-weight: 900; letter-spacing: .16em; color: var(--hud-yellow); }
+.set-rows { display: flex; flex-direction: column; gap: 14px; width: min(560px, 92%); }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border-bottom: 2px solid rgba(255, 255, 255, .18); padding-bottom: 10px; }
+.set-label { font-weight: 800; letter-spacing: .12em; color: rgba(255, 255, 255, .82); font-size: 15px; }
+.set-ctl { display: flex; gap: 8px; }
+.set-ctl .btn { min-width: 74px; }
+
+/* ---------------- credits / onboarding ---------------- */
+.set-hint { display: block; font-size: 10px; letter-spacing: .06em; color: rgba(255,255,255,.45); font-weight: 600; margin-top: 2px; }
+.cred-list { display: flex; flex-direction: column; gap: 18px; width: min(620px, 94%); }
+.cred-block { border-left: 4px solid var(--hud-yellow); padding-left: 16px; text-align: left; }
+.cred-role { font-size: 11px; letter-spacing: .22em; color: var(--hud-yellow); font-weight: 800; }
+.cred-name { font-size: clamp(20px, 4.4vw, 30px); font-weight: 900; font-style: italic; letter-spacing: .04em; }
+.cred-note { font-size: 12.5px; color: rgba(255,255,255,.72); margin-top: 3px; line-height: 1.5; }
+.screen.intro, .screen.credits { background: rgba(6, 14, 40, .95); gap: 20px; }
+.intro-steps { display: flex; flex-direction: column; gap: 14px; width: min(660px, 94%); text-align: left; }
+.intro-step { display: flex; gap: 16px; align-items: flex-start; background: rgba(255,255,255,.05);
+  border: 2px solid rgba(255,255,255,.10); border-radius: 12px; padding: 12px 16px; }
+.intro-n { font-size: 22px; font-weight: 900; font-style: italic; color: var(--hud-yellow); min-width: 40px; }
+.intro-t { font-weight: 900; letter-spacing: .14em; font-size: 14px; }
+.intro-d { font-size: 12.5px; color: rgba(255,255,255,.74); margin-top: 3px; line-height: 1.5; }
+.intro-foot { font-size: 11.5px; color: rgba(255,255,255,.55); max-width: 560px; line-height: 1.6; }

@@ -395,12 +395,12 @@ export function buildLevel() {
 
   // one-time tutorial hints (shown once per run when the hero passes s)
   const hints = [
-    { s: M('start') + 5, text: '← → で左右に移動。リーフを集めよう！', touch: '左側をドラッグで移動。リーフを集めよう！' },
-    { s: M('b_flat') + 40, text: 'ジャンプ台の後は ↑↓←→ でトリック！', touch: 'ジャンプ台で大ジャンプ！' },
-    { s: M('c_s1') + 2, text: 'JUMP → 空中でもう一度 JUMP でホーミングアタック！', touch: 'JUMP → 空中でもう一度 JUMP でホーミング！' },
-    { s: M('loop1_pre') + 20, text: 'SHIFT でブースト！ 敵も車も吹き飛ばせ', touch: 'BOOST で一気に加速！' },
-    { s: M('rail_pre') + 5, text: 'ジャンプ台からレールに乗ってグラインド！' },
-    { s: M('homing_pre') + 5, text: '敵から敵へホーミングで谷を越えろ！' },
+    { s: M('start') + 5, text: 'Steer with ← →. Collect the leaves!', touch: 'Drag on the left side to steer. Collect the leaves!' },
+    { s: M('b_flat') + 40, text: 'After a ramp, ↑↓←→ performs a trick!', touch: 'Launch off the ramp!' },
+    { s: M('c_s1') + 2, text: 'JUMP → then JUMP again in the air for a homing attack!', touch: 'JUMP → then JUMP again in the air to home in!' },
+    { s: M('loop1_pre') + 20, text: 'BOOST to accelerate — smash enemies and cars', touch: 'BOOST for a burst of speed!' },
+    { s: M('rail_pre') + 5, text: 'Take the ramp onto the rail and grind!' },
+    { s: M('homing_pre') + 5, text: 'Chain homing attacks from enemy to enemy!' },
   ];
 
   const truck = {

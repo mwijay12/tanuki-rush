@@ -176,6 +176,12 @@ export class AudioEngine {
     for (const ev of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(ev, this._unlock, true);
   }
 
+  /** Called when the tab regains visibility; browsers suspend the context. */
+  _onVisible() {
+    if (document.visibilityState !== 'visible') return;
+    this._resumeCtx().then(() => { if (!this._paused) this.resume(); }).catch(() => {});
+  }
+
   _resumeCtx() {
     const ctx = this.ctx;
     if (!ctx || this._paused || ctx.state === 'running' || ctx.state === 'closed') return Promise.resolve();

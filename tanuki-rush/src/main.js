@@ -8,7 +8,7 @@ function fail(err) {
   console.error(err);
   const d = document.createElement('div');
   d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0a1a44;color:#fff;font:700 18px/1.6 sans-serif;text-align:center;padding:24px;z-index:99';
-  d.textContent = 'WebGL2 が使えないため起動できませんでした。別のブラウザやデバイスでお試しください。';
+  d.textContent = 'WebGL2 is unavailable, so the game cannot start. Try another browser or device.';
   document.body.appendChild(d);
 }
 

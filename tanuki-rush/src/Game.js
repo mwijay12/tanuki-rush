@@ -345,6 +345,30 @@ export class Game {
     requestAnimationFrame(loop);
   }
 
+  /** Shared settings bindings so the title screen and the settings panel stay in sync. */
+  _settingsBindings() {
+    return {
+      quality: this.quality,
+      onQuality: (q) => this.applyQuality(q),
+      muted: this.muted,
+      onMute: () => {
+        this.muted = !this.muted; this.save.muted = this.muted; this._writeSave();
+        this.audio.setMuted(this.muted); return this.muted;
+      },
+      softFx: this.fxScale < 1,
+      onSoftFx: () => {
+        this.save.softFx = !this.save.softFx;
+        this.fxScale = this.save.softFx ? 0.4 : 1;
+        this.rig.shakeScale = this.save.softFx ? 0.5 : 1;
+        this._writeSave(); return this.save.softFx;
+      },
+    };
+  }
+
+  _openSettings() {
+    this.hud.showSettings({ ...this._settingsBindings(), onClose: () => this.hud.hideSettings() });
+  }
+
   toTitle() {
     this.state = 'title';
     this.hud.showHUD(false);
@@ -359,6 +383,7 @@ export class Game {
     this.truck.reset();
     this.hud.showTitle({
       onStart: () => this.startRun(),
+      onSettings: () => this._openSettings(),
       quality: this.quality,
       onQuality: (q) => this.applyQuality(q),
       best: this.save.bestTime ? `${formatTime(this.save.bestTime)}  ／  ${this.save.bestScore || 0} pts  ／  RANK ${this.save.bestRank || '-'}` : '',
@@ -375,6 +400,10 @@ export class Game {
     });
     this.audio.setWind(0); this.audio.setTruck(0); this.audio.setGrind(false); this.audio.setBoost(false);
     this.audio.playMusic('title');
+    if (!localStorage.getItem('tanuki_intro')) {
+      this.state = 'title';
+      this.hud.showIntro(() => localStorage.setItem('tanuki_intro', '1'));
+    }
   }
 
   async startRun() {
@@ -433,6 +462,7 @@ export class Game {
       onResume: () => this.resume(),
       onRestart: () => { this.hud.hidePause(); this.audio.resume(); this.startRun(); },
       onTitle: () => { this.audio.resume(); this.toTitle(); },
+      onSettings: () => this._openSettings(),
     });
   }
 
