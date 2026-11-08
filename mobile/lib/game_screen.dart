@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'app_theme.dart';
+import 'game_webview_settings.dart';
 import 'notification_service.dart';
 
 /// Hosts the game. The WebView only ever talks to the loopback server this app
@@ -213,34 +214,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     );
   }
 
-  static final InAppWebViewSettings _settings = InAppWebViewSettings(
-    javaScriptEnabled: true,
-    // Best times and settings are persisted by the game in localStorage.
-    domStorageEnabled: true,
-    databaseEnabled: true,
-    // The audio engine starts on user gesture, but allowing autoplay avoids a
-    // silent first run on some WebView builds.
-    mediaPlaybackRequiresUserGesture: false,
-    transparentBackground: false,
-    useHybridComposition: true,
-    hardwareAcceleration: true,
-    // A runner game must never rubber-band or pinch-zoom mid-run.
-    disableVerticalScroll: true,
-    disableHorizontalScroll: true,
-    supportZoom: false,
-    builtInZoomControls: false,
-    displayZoomControls: false,
-    verticalScrollBarEnabled: false,
-    horizontalScrollBarEnabled: false,
-    disableContextMenu: true,
-    supportMultipleWindows: false,
-    // Everything is served over loopback, so file/content access stays closed.
-    allowFileAccess: false,
-    allowContentAccess: false,
-    cacheEnabled: true,
-    useShouldOverrideUrlLoading: true,
-    isInspectable: kDebugMode,
-  );
+  static final InAppWebViewSettings _settings = createGameWebViewSettings();
 }
 
 class _LoadingOverlay extends StatelessWidget {

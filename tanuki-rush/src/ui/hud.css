@@ -165,13 +165,17 @@ body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color
 /* ---------------- touch controls ---------------- */
 .touch { position: absolute; inset: 0; pointer-events: none; display: none; }
 .touch.on { display: block; }
-.tpad { position: absolute; left: 0; bottom: 0; width: 45%; height: 60%; pointer-events: auto; }
+.tpad { position: absolute; left: 0; top: 0; width: 50%; height: 100%; pointer-events: auto; }
+.steer-guide { position: absolute; left: max(16px, env(safe-area-inset-left)); bottom: 106px; display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px; border-radius: 6px; background: rgba(8,20,60,.55); color: rgba(255,255,255,.86);
+  font: 800 10px/1 var(--font-jp); letter-spacing: .08em; pointer-events: none; }
+.steer-guide span { color: var(--hud-yellow); font-size: 18px; line-height: 1; }
 .tstick { position: absolute; width: 120px; height: 120px; border-radius: 50%; border: 3px solid rgba(255,255,255,.55); background: rgba(10, 20, 60, .25); display: none; }
 .tstick .knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,.75); }
 .tbtn { position: absolute; pointer-events: auto; width: 92px; height: 92px; border-radius: 50%; border: 4px solid #fff; display: flex; align-items: center; justify-content: center;
   font-weight: 900; font-style: italic; font-size: 17px; color: #fff; text-shadow: 2px 2px 0 var(--hud-ink); box-shadow: 3px 3px 0 var(--hud-ink); }
 .tbtn.jump { right: 26px; bottom: 34px; background: rgba(31, 111, 255, .65); }
-.tbtn.boost { right: 132px; bottom: 22px; width: 78px; height: 78px; background: rgba(255, 138, 31, .7); font-size: 15px; }
+.tbtn.boost { right: 132px; bottom: 22px; width: 78px; height: 78px; background: rgba(255, 138, 31, .7); font-size: 15px; transform: none; }
 .tbtn.brake { right: 40px; bottom: 140px; width: 64px; height: 64px; background: rgba(60, 60, 70, .6); font-size: 13px; }
 .tbtn.pausebtn { right: 16px; top: 14px; width: 48px; height: 48px; font-size: 16px; background: rgba(8, 20, 60, .6); border-width: 3px; }
 .tbtn.down { filter: brightness(1.5); transform: scale(.94); }

@@ -18,11 +18,17 @@ export function preventPageZoom(doc = document) {
   for (const type of ['gesturestart', 'gesturechange', 'gestureend']) doc.addEventListener(type, cancel, { passive: false });
   doc.addEventListener('touchmove', (e) => { if (e.touches.length > 1) cancel(e); }, { passive: false });
 
-  // Double-tap zoom on a menu: drop the second tap of a quick pair.
-  let lastEnd = -Infinity;
+  // Double-tap zoom on a menu: only suppress a quick repeat on the same
+  // target. A gameplay finger released just before opening PAUSE must not
+  // cancel the first tap on RESUME (nor should two different menu buttons).
+  let lastMenuTap = null;
   doc.addEventListener('touchend', (e) => {
-    if (inMenu(e) && e.timeStamp - lastEnd < 300) cancel(e);
-    lastEnd = e.timeStamp;
+    if (!inMenu(e) || e.touches.length || e.changedTouches.length !== 1) { lastMenuTap = null; return; }
+    const target = e.target.closest('button, a') || e.target.closest(MENU);
+    const point = e.changedTouches[0];
+    if (lastMenuTap && lastMenuTap.target === target && e.timeStamp - lastMenuTap.time < 300 &&
+        Math.hypot(point.clientX - lastMenuTap.x, point.clientY - lastMenuTap.y) < 24) cancel(e);
+    lastMenuTap = { target, time: e.timeStamp, x: point.clientX, y: point.clientY };
   }, { passive: false });
   doc.addEventListener('dblclick', cancel);
 }

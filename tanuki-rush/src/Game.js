@@ -495,6 +495,9 @@ export class Game {
     if (this.state !== 'play' && this.state !== 'countdown') return;
     this.prevState = this.state;
     this.state = 'paused';
+    // The touch layer is rendered above menus; hide it so it cannot intercept
+    // pause/settings buttons, and release any held controls while paused.
+    this.hud.showTouch(false);
     this.audio.pause();
     this.hud.showPause({
       onResume: () => this.resume(),
@@ -509,6 +512,7 @@ export class Game {
     this.hud.hidePause();
     this.audio.resume();
     this.state = this.prevState || 'play';
+    this.hud.showTouch(true);
   }
 
   _goal() {

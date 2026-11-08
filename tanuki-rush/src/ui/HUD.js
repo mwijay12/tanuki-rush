@@ -444,7 +444,7 @@ export class HUD {
 
   _buildTouch() {
     const t = el('div', 'touch');
-    t.innerHTML = `<div class="tpad"><div class="tstick"><div class="knob"></div></div></div>
+    t.innerHTML = `<div class="tpad"><div class="steer-guide" aria-hidden="true"><span>↔</span> DRAG TO STEER</div><div class="tstick"><div class="knob"></div></div></div>
       <div class="tbtn jump" data-b="jump">JUMP</div><div class="tbtn boost" data-b="boost">BOOST</div>
       <div class="tbtn brake" data-b="brake">BRAKE</div><div class="tbtn pausebtn" data-b="pause">II</div>`;
     this.root.appendChild(t);
@@ -452,8 +452,19 @@ export class HUD {
     const inp = this.input;
     const pad = t.querySelector('.tpad'), stick = t.querySelector('.tstick'), knob = t.querySelector('.knob');
     let sid = null, sx = 0, sy = 0;
+    const resetSteer = () => {
+      const active = sid; sid = null;
+      if (active !== null) {
+        try { if (pad.hasPointerCapture(active)) pad.releasePointerCapture(active); } catch (_) { /* best-effort */ }
+      }
+      inp.touch.steer = 0;
+      stick.style.display = 'none';
+    };
+    this._resetSteer = resetSteer;
     pad.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      // Keep the first steering finger if another touches the left side.
+      if (sid !== null) return;
       sid = e.pointerId; sx = e.clientX; sy = e.clientY;
       try { pad.setPointerCapture(e.pointerId); } catch (_) { /* capture is best-effort */ }
       const r = pad.getBoundingClientRect();
@@ -467,9 +478,10 @@ export class HUD {
       inp.touch.steer = Math.abs(dx) < 6 ? 0 : dx / this.steerDiv;
       knob.style.transform = `translateX(${dx}px)`;
     });
-    const end = (e) => { if (e.pointerId !== sid) return; sid = null; inp.touch.steer = 0; stick.style.display = 'none'; };
+    const end = (e) => { if (e.pointerId === sid) resetSteer(); };
     pad.addEventListener('pointerup', end);
     pad.addEventListener('pointercancel', end);
+    pad.addEventListener('lostpointercapture', end);
     t.querySelectorAll('.tbtn').forEach((b) => {
       const name = b.dataset.b;
       b.addEventListener('pointerdown', (e) => {
@@ -500,7 +512,8 @@ export class HUD {
     if (!t) {
       // Never leave a control stuck down when the layer disappears.
       const inp = this.input;
-      inp.touch.steer = 0; inp.touch.jump = false; inp.touch.boost = false; inp.touch.brake = false;
+      this._resetSteer();
+      inp.touch.jump = false; inp.touch.boost = false; inp.touch.brake = false;
       this.touchEl.querySelectorAll('.tbtn.down').forEach((b) => b.classList.remove('down'));
     }
   }

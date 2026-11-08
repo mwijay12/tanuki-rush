@@ -34,6 +34,11 @@ jobs:
         run: |
           git diff --exit-code -- mobile/assets/web
           test -z "$(git ls-files --others --exclude-standard -- mobile/assets/web)"
+      - name: Test bundled touch controls in Chrome
+        working-directory: tanuki-rush
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: ../tools/ci_run.sh npm run test:touch
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -57,6 +62,9 @@ jobs:
       - name: Analyze Flutter app
         working-directory: mobile
         run: ../tools/ci_run.sh flutter analyze --no-pub
+      - name: Test WebView touch configuration
+        working-directory: mobile
+        run: ../tools/ci_run.sh flutter test --no-pub
       - name: Test asset server and stable origin
         working-directory: mobile
         run: ../tools/ci_run.sh dart run tool/verify_asset_server.dart
@@ -92,7 +100,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="preview-${GITHUB_SHA:0:10}"
+          version=$(awk '/^version:/ {print $2}' mobile/pubspec.yaml)
           gh release create "$tag" release/tanuki-rush-android-preview.apk release/SHA256SUMS.txt \
             --target "$GITHUB_SHA" --prerelease \
-            --title "Tanuki Rush — Android preview ${GITHUB_SHA:0:7}" \
+            --title "Tanuki Rush — Android preview $version (${GITHUB_SHA:0:7})" \
             --notes-file docs/PREVIEW_RELEASE.md

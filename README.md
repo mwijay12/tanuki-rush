@@ -6,7 +6,7 @@ The original **TANUKI RUSH** game is by [tanuu5](https://github.com/tanuu5/tanuk
 
 ## Play
 
-- **Start a run:** steer left/right, jump (jump again in the air to home in on an enemy), and boost. On touch screens, drag on the left and use the buttons on the right. On a keyboard use arrows/A–D, Space/J and Shift/K.
+- **Start a run:** steer left/right, jump (jump again in the air to home in on an enemy), and boost. On touch screens, put your thumb anywhere on the left half, **hold and drag** left or right, and release to center; use the buttons on the right with your other thumb. Adjust touch steering sensitivity in Settings. On a keyboard use arrows/A–D, Space/J and Shift/K.
 - **Keep improving:** beat your local best time and aim for the next rank.
 - **Daily runs:** three goals rotate with your device's local date. Finish a run to earn leaf tokens; complete goals for a bonus. Each goal pays once per day.
 - **Trail shop:** unlock boost particle colours with tokens earned in-game. Trails are cosmetic and do not affect speed. No purchases or account are needed.
@@ -29,7 +29,7 @@ Open the URL printed by Vite. Rotate a phone to landscape. The game needs WebGL2
 
 ## Android APK
 
-Download the [Android preview release](https://github.com/mwijay12/tanuki-rush/releases/tag/preview-d662b6729f) or check the [Releases page](https://github.com/mwijay12/tanuki-rush/releases) for newer versions. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
+Download the newest Android **pre-release** from the [Releases page](https://github.com/mwijay12/tanuki-rush/releases). Preview 1.0.1 addresses an Android WebView setting that blocked drag steering. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
 
 **Preview signing is not production signing.** The current build uses an Android debug key. CI can generate a different key for each build, so updating an installed preview may require uninstalling it first, which deletes local progress. It is not suitable for a Play Store upload. Set up a securely backed-up release keystore and test on real phones before production.
 
@@ -44,6 +44,7 @@ python3 tools/build_web_assets.py
 cd mobile
 flutter pub get
 flutter analyze --no-pub
+flutter test --no-pub
 dart run tool/verify_asset_server.dart
 flutter build apk --release --no-pub --target-platform android-arm,android-arm64
 # mobile/build/app/outputs/flutter-apk/app-release.apk
@@ -53,7 +54,7 @@ The asset script installs the locked npm dependencies and builds the game. Fonts
 
 ### CI and preview releases
 
-The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game, rebuilds and checks the offline assets, runs Flutter analysis and asset-server checks, and builds an APK. A normal branch push produces a downloadable Actions artifact. A push commit containing `[release-preview]` additionally publishes a uniquely tagged **pre-release** with the APK and its SHA-256 checksum. A pre-release should still be tested on real Android hardware before it is treated as a real release.
+The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game, rebuilds and checks the offline assets, runs touch simulations in Chrome, checks the Flutter WebView settings and asset server, and builds an APK. To run the browser touch checks locally after rebuilding the assets, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`. These checks do not replace testing on an actual Android WebView/device. A normal branch push produces a downloadable Actions artifact. A push commit containing `[release-preview]` additionally publishes a uniquely tagged **pre-release** with the APK and its SHA-256 checksum.
 
 ### Why the app runs a loopback server
 
