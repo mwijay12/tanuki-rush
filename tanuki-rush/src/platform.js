@@ -44,43 +44,48 @@ export function haptic(type = 'light') {
 
 // ---------------------------------------------------------------- wake lock
 let _wake = null;
+let _wakeWanted = false;
 
-/** Keep the screen awake during play. Uses the Screen Wake Lock API, which
- *  works in modern Chromium (and therefore the Android WebView). */
+/** Keep the screen awake only while a run is active, where supported. */
 export async function keepAwake(on) {
+  _wakeWanted = !!on;
   try {
     if (on) {
       if (_wake || typeof navigator === 'undefined' || !navigator.wakeLock) return;
-      _wake = await navigator.wakeLock.request('screen');
-      _wake.addEventListener?.('release', () => { _wake = null; });
+      const lock = await navigator.wakeLock.request('screen');
+      if (!_wakeWanted) { await lock.release(); return; }
+      _wake = lock;
+      lock.addEventListener?.('release', () => { if (_wake === lock) _wake = null; });
     } else if (_wake) {
-      await _wake.release();
+      const lock = _wake;
       _wake = null;
+      await lock.release();
     }
   } catch (_) {
-    _wake = null; // user agent may reject when not visible; harmless
+    _wake = null; // unsupported, hidden or denied; the game still works
   }
 }
 
-// Re-acquire the lock when the tab returns to the foreground.
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && _wake === null) keepAwake(true);
+    if (_wakeWanted && document.visibilityState === 'visible' && _wake === null) keepAwake(true);
   });
 }
 
 // ------------------------------------------------------------ notifications
-/** Ask the native shell to (re)schedule the daily streak reminder. No-op on
- *  the web, where scheduled local notifications are not available. */
+/** Optional native reminders. Never request permission without a player action. */
 export function scheduleStreakReminder(streak) {
   const b = bridge();
-  if (!b) return;
-  try { b.callHandler('scheduleStreakReminder', { streak }); } catch (_) {}
+  if (b) { try { Promise.resolve(b.callHandler('scheduleStreakReminder', { streak })).catch(() => {}); } catch (_) {} }
 }
 
-/** Ask the native shell to request notification permission (Android 13+). */
-export function requestNotifications() {
+export function cancelStreakReminder() {
   const b = bridge();
-  if (!b) return Promise.resolve(false);
-  try { return Promise.resolve(b.callHandler('requestNotifications')); } catch (_) { return Promise.resolve(false); }
+  if (b) { try { Promise.resolve(b.callHandler('cancelStreakReminder')).catch(() => {}); } catch (_) {} }
+}
+
+export async function requestNotifications() {
+  const b = bridge();
+  if (!b) return false;
+  try { return !!(await b.callHandler('requestNotifications')); } catch (_) { return false; }
 }

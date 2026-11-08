@@ -15,15 +15,17 @@ typedef WebAssetLoader = Future<Uint8List?> Function(String assetKey);
 ///   * `localStorage` (used for best times / records) is unreliable or blocked
 ///     on `file://`, but works normally on a loopback HTTP origin.
 ///
-/// Binding to port 0 lets the OS pick a free ephemeral port, so two instances
-/// (or a second app) never collide.
+/// Use a stable [listenPort] for the game: WebView localStorage is scoped to
+/// the complete origin, including the port. Port 0 is useful only for tests or
+/// callers that do not need persistent browser storage.
 class WebAssetServer {
   WebAssetServer({
     required this.loadAsset,
     required this.assetKeys,
     this.assetPrefix = defaultAssetPrefix,
     this.host = '127.0.0.1',
-    this.cacheControl = 'public, max-age=3600',
+    this.listenPort = 0,
+    this.cacheControl = 'no-cache',
   }) : _knownKeys = assetKeys.toSet();
 
   static const String defaultAssetPrefix = 'assets/web/';
@@ -35,6 +37,8 @@ class WebAssetServer {
   final Set<String> _knownKeys;
   final String assetPrefix;
   final String host;
+  /// A fixed port keeps the WebView's storage origin stable across app starts.
+  final int listenPort;
   final String cacheControl;
 
   HttpServer? _server;
@@ -52,7 +56,9 @@ class WebAssetServer {
 
   Future<void> start() async {
     if (_server != null) return;
-    final server = await HttpServer.bind(host, 0, shared: false);
+    // Never fall back to a random port if the stable one is unavailable: doing
+    // so would silently show an empty save or connect to another process.
+    final server = await HttpServer.bind(host, listenPort, shared: false);
     server.autoCompress = true;
     _server = server;
     _subscription = server.listen(

@@ -49,6 +49,16 @@ class NotificationService {
     }
   }
 
+  /// Cancel the optional reminder when the player switches it off.
+  Future<void> cancelStreakReminder() async {
+    try {
+      await _ensureInit();
+      await _plugin.cancel(_streakId);
+    } catch (e) {
+      debugPrint('[notif] cancel failed: $e');
+    }
+  }
+
   /// (Re)schedule the single streak reminder for ~20 hours from now.
   Future<void> scheduleStreakReminder(int streak) async {
     try {
@@ -64,6 +74,8 @@ class NotificationService {
         body,
         when,
         const NotificationDetails(android: _android),
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: null,
       );

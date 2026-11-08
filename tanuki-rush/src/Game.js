@@ -19,8 +19,8 @@ import { PostFX } from './fx/PostFX.js';
 import { Objects } from './objects/Objects.js';
 import { Truck } from './objects/Truck.js';
 import { HUD, formatTime } from './ui/HUD.js';
-import { tickStreak, activeStreak, dailyGoal, tierInfo, todayStr } from './progression.js';
-import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, requestNotifications } from './platform.js';
+import { tickStreak, activeStreak, tierInfo, missionStatus, awardRun, normalizeProgress, selectTrail, equippedTrail, TRAILS } from './progression.js';
+import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, requestNotifications, cancelStreakReminder, isNativeApp } from './platform.js';
 import { setAnisotropy } from './core/textures.js';
 import { Bot } from './core/Bot.js';
 
@@ -51,7 +51,7 @@ export class Game {
     container.style.cssText = 'position:fixed;inset:0;overflow:hidden;background:#000;';
     this.container = container;
     this.params = new URLSearchParams(location.search);
-    this.save = this._loadSave();
+    this.save = normalizeProgress(this._loadSave());
     const touchDevice = matchMedia('(pointer: coarse)').matches;
     this.quality = this.params.get('q') || this.save.quality || (touchDevice ? 'mid' : 'high');
 
@@ -110,7 +110,10 @@ export class Game {
 
   // ======================================================================= setup
   _loadSave() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; }
+    try {
+      const save = JSON.parse(localStorage.getItem(STORE_KEY));
+      return save && typeof save === 'object' && !Array.isArray(save) ? save : {};
+    } catch { return {}; }
   }
   _writeSave() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(this.save)); } catch { /* storage unavailable */ }
@@ -220,6 +223,7 @@ export class Game {
       }
     });
     ev.on('leaf', () => {
+      if (this.state === 'play') this.leavesCollected++;
       this._leafCombo = (this._leafComboT > 0 ? (this._leafCombo || 0) + 1 : 0);
       this._leafComboT = 0.5;
       A().play('leaf', { pitch: 1 + Math.min(this._leafCombo, 12) * 0.035, pan: (Math.random() - 0.5) * 0.4 });
@@ -372,12 +376,37 @@ export class Game {
       ...this._settingsBindings(),
       haptics: hapticsEnabled(),
       onHaptics: () => { const on = !hapticsEnabled(); setHaptics(on); if (on) haptic('select'); return on; },
+      reminders: isNativeApp() ? !!this.save.reminders : null,
+      onReminders: async () => {
+        if (this.save.reminders) {
+          this.save.reminders = false;
+          cancelStreakReminder();
+        } else if (await requestNotifications()) {
+          this.save.reminders = true;
+          if (activeStreak(this.save)) scheduleStreakReminder(activeStreak(this.save));
+        }
+        this._writeSave();
+        return !!this.save.reminders;
+      },
       onClose: () => this.hud.hideSettings(),
+    });
+  }
+
+  _openShop() {
+    this.hud.showShop({
+      getState: () => ({ tokens: this.save.tokens, trails: TRAILS, owned: this.save.ownedTrails, equipped: this.save.equippedTrail }),
+      onSelect: (id) => {
+        const result = selectTrail(this.save, id);
+        if (result.ok) { this._writeSave(); haptic('select'); }
+        return result;
+      },
+      onClose: () => { this.hud.hideShop(); this.toTitle(); },
     });
   }
 
   toTitle() {
     this.state = 'title';
+    keepAwake(false);
     this.hud.showHUD(false);
     this.hud.hideResults();
     this.hud.hidePause();
@@ -391,27 +420,18 @@ export class Game {
     this.hud.showTitle({
       onStart: () => this.startRun(),
       onSettings: () => this._openSettings(),
-      quality: this.quality,
-      onQuality: (q) => this.applyQuality(q),
-      best: this.save.bestTime ? `${formatTime(this.save.bestTime)}  ／  ${this.save.bestScore || 0} pts  ／  RANK ${this.save.bestRank || '-'}` : '',
+      onShop: () => this._openShop(),
+      bestTime: Number.isFinite(this.save.bestTime) && this.save.bestTime > 0 ? formatTime(this.save.bestTime) : '',
+      bestRank: ['S', 'A', 'B', 'C', 'D'].includes(this.save.bestRank) ? this.save.bestRank : '',
       streak: activeStreak(this.save),
-      daily: { label: dailyGoal().label, done: this.save.dailyDone === todayStr() },
-      muted: this.muted,
-      onMute: () => { this.muted = !this.muted; this.save.muted = this.muted; this._writeSave(); this.audio.setMuted(this.muted); return this.muted; },
-      softFx: this.fxScale < 1,
-      onSoftFx: () => {
-        this.save.softFx = !this.save.softFx;
-        this.fxScale = this.save.softFx ? 0.4 : 1;
-        this.rig.shakeScale = this.save.softFx ? 0.5 : 1;
-        this._writeSave();
-        return this.save.softFx;
-      },
+      missions: missionStatus(this.save),
+      tokens: this.save.tokens,
+      trailName: equippedTrail(this.save).name,
     });
     this.audio.setWind(0); this.audio.setTruck(0); this.audio.setGrind(false); this.audio.setBoost(false);
     this.audio.playMusic('title');
     if (!localStorage.getItem('tanuki_intro')) {
-      this.state = 'title';
-      this.hud.showIntro(() => { localStorage.setItem('tanuki_intro', '1'); requestNotifications(); });
+      this.hud.showIntro(() => { try { localStorage.setItem('tanuki_intro', '1'); } catch (_) {} });
     }
   }
 
@@ -424,10 +444,13 @@ export class Game {
     await this._initAudio();
     this._starting = false;
     this.audio.play('uiSelect');
-    this.streak = tickStreak(this.save); this._writeSave();
-    this.dailyGoal = dailyGoal();
+    this.isPracticeRun = !!this.bot || this.params.has('s');
+    this.streak = this.isPracticeRun ? activeStreak(this.save) : tickStreak(this.save);
+    if (!this.isPracticeRun) {
+      this._writeSave();
+      if (this.save.reminders) scheduleStreakReminder(this.streak);
+    }
     keepAwake(true);
-    scheduleStreakReminder(this.streak);
     this.resetRun();
     this.state = 'countdown';
     this.countdown = 3.6;
@@ -454,6 +477,8 @@ export class Game {
     this.runTime = 0;
     this.deaths = 0;
     this.enemiesDown = 0;
+    this.leavesCollected = 0;
+    this.finishedRun = null;
     this.checkpoint = { s: s0, time: 0 };
     this.goalT = 0;
     this.respawnT = 0;
@@ -489,6 +514,12 @@ export class Game {
   _goal() {
     if (this.state !== 'play') return;
     this.hud.clearHint();
+    // Freeze the score at the finish line; the celebration continues to animate
+    // the world and must not change the just-completed run's rewards.
+    this.finishedRun = {
+      time: this.runTime, score: this.objects.score, leaves: this.player.leaves,
+      collected: this.leavesCollected, enemies: this.enemiesDown, deaths: this.deaths,
+    };
     this.state = 'goal';
     this.goalT = 0;
     this.player.goal();
@@ -506,33 +537,28 @@ export class Game {
   }
 
   _results() {
+    if (this.state !== 'goal' || !this.finishedRun) return;
     this.state = 'results';
-    const t = this.runTime;
-    const score = this.objects.score;
+    const run = this.finishedRun;
+    const { time: t, score, leaves, collected, enemies, deaths } = run;
     const timeBonus = Math.max(0, Math.round(((210 - t) * 120) / 10) * 10);
-    const leafBonus = this.player.leaves * 50;
-    const total = Math.max(0, score + timeBonus + leafBonus - this.deaths * 1000);
-    const rank = total >= 40000 ? 'S' : total >= 31000 ? 'A' : total >= 22000 ? 'B' : total >= 13000 ? 'C' : 'D';
-    const testRun = !!this.bot || this.params.has('s');
-    const newRecord = !testRun && (!this.save.bestTime || t < this.save.bestTime);
-    if (newRecord) this.save.bestTime = t;
-    if (!testRun && (!this.save.bestScore || total > this.save.bestScore)) { this.save.bestScore = total; this.save.bestRank = rank; }
+    const leafBonus = leaves * 50;
+    const total = Math.max(0, score + timeBonus + leafBonus - deaths * 1000);
     const tier = tierInfo(total);
-    const goal = this.dailyGoal || dailyGoal();
-    const goalRun = { leaves: this.player.leaves, enemies: this.enemiesDown, time: t, total, rank };
-    const goalAlready = this.save.dailyDone === goal.dateStr;
-    const goalDone = goal.test(goalRun);
-    const goalJustDone = goalDone && !goalAlready;
-    if (goalJustDone && !testRun) { this.save.dailyDone = goal.dateStr; }
-    this._writeSave();
+    const rank = tier.rank;
+    const newRecord = !this.isPracticeRun && (!this.save.bestTime || t < this.save.bestTime);
+    if (newRecord) this.save.bestTime = t;
+    if (!this.isPracticeRun && (!this.save.bestScore || total > this.save.bestScore)) { this.save.bestScore = total; this.save.bestRank = rank; }
+    const award = this.isPracticeRun ? null : awardRun(this.save, { ...run, total, rank });
+    if (!this.isPracticeRun) this._writeSave();
     keepAwake(false);
     this.hud.showHUD(false);
-    this.hud.showResults({ time: t, leaves: this.player.leaves, enemies: this.enemiesDown, score, timeBonus, leafBonus, total, rank, newRecord,
-      tier, streak: this.streak || activeStreak(this.save), goal: { label: goal.label, done: goalDone, justDone: goalJustDone } }, {
+    this.hud.showResults({ time: t, leaves, collected, enemies, deaths, score, timeBonus, leafBonus, total, rank, newRecord,
+      tier, streak: this.streak || activeStreak(this.save), award }, {
       onRetry: () => this.startRun(),
       onTitle: () => this.toTitle(),
     });
-    setTimeout(() => this.audio.play('rankReveal'), 1700);
+    setTimeout(() => { if (this.state === 'results') this.audio.play('rankReveal'); }, 1700);
   }
 
   _respawn() {
@@ -585,7 +611,7 @@ export class Game {
 
   _updateTitle(dt) {
     const inp = this.input;
-    if (inp.take('confirm') || inp.take('jump')) { this.startRun(); return; }
+    if (!this.hud.hasOpenOverlay && (inp.take('confirm') || inp.take('jump'))) { this.startRun(); return; }
     // drone fly-over along the course
     const main = this.level.main;
     this.titleS = (this.titleS + dt * 24) % (main.length - 200);
@@ -823,7 +849,7 @@ export class Game {
           const side = Math.random() < 0.5 ? -1 : 1;
           this._tmp.set(side * (0.5 + Math.random() * 0.4), 0.3 + Math.random() * 1.2, 0.2).applyQuaternion(p.visualQuat).add(p.pos);
           this._tmp2.set(side * (4 + Math.random() * 5), Math.random() * 2, 0).applyQuaternion(p.visualQuat).addScaledVector(p.vel, 0.92);
-          this.fx.spawn(this._tmp, this._tmp2, { color: Math.random() < 0.5 ? 0x7fe8ff : 0xffffff, size: 0.22, life: 0.22, drag: 1 });
+          this.fx.spawn(this._tmp, this._tmp2, { color: Math.random() < 0.75 ? equippedTrail(this.save).color : 0xffffff, size: 0.22, life: 0.22, drag: 1 });
         }
       }
       if (p.state === 'rail') {

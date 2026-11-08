@@ -1,45 +1,19 @@
 # Third-party notices
 
-## Tanuki Rush (the game)
+## TANUKI RUSH
 
-This project ships a compiled copy of **TANUKI RUSH**, a browser game by
-[tanuu5](https://github.com/tanuu5) (たぬ).
+The original game (3D course, tanuki, city, physics, music and sound effects) is by [tanuu5](https://github.com/tanuu5/tanuki-rush) (たぬ), MIT License, Copyright © 2026 たぬ. The full license is in [LICENSE-tanuki-rush](LICENSE-tanuki-rush) and is included in the bundled game as `LICENSE-tanuki-rush.txt`.
 
-- Source: https://github.com/tanuu5/tanuki-rush
-- License: MIT — Copyright (c) 2026 たぬ
-- Bundled as: `mobile/assets/web/` (built with `npm run build` from the upstream source)
-
-The full MIT text is reproduced in [`LICENSE-tanuki-rush`](LICENSE-tanuki-rush), as the
-license requires.
-
-**What this project did not do:** the game itself — the 3D course, the tanuki model,
-the city, the music and sound effects, the physics and the HUD — was written by the
-original author. This project adds a native Android shell around it.
-
-**What this project did:** the Flutter application, the loopback asset server, the
-Android configuration, offline font bundling, and the build pipeline.
+This project adds a Flutter Android shell, mobile UI, offline progression, cosmetic trails and a build pipeline. The title background uses the original game's `og-image.jpg`; it is not new AI-generated key art.
 
 ## three.js
 
-The game uses [three.js](https://threejs.org/), MIT License, Copyright © 2010-2024
-three.js authors. It is compiled into `mobile/assets/web/assets/`.
+The game uses [three.js](https://threejs.org/), MIT License, Copyright © 2010–2024 three.js authors. The full license is bundled as `LICENSE-three.txt`.
 
 ## Fonts
 
-| Family | Source | License |
-| --- | --- | --- |
-| Exo 2 | Google Fonts | SIL Open Font License 1.1 |
-| M PLUS Rounded 1c | Google Fonts | SIL Open Font License 1.1 |
-
-Only the `latin` and `latin-ext` subsets are bundled (in `mobile/assets/web/fonts/`) so
-the app renders identically without a network connection.
+Exo 2 and M PLUS Rounded 1c are distributed under the SIL Open Font License 1.1. Latin and Latin-ext subsets are bundled for offline use. Copyright and license texts are in `tanuki-rush/public/fonts/OFL-Exo2.txt` and `OFL-MPlusRounded1c.txt` and are included in the Android bundle.
 
 ## Flutter / Dart
 
-Built with the Flutter SDK (BSD 3-Clause) and the `flutter_inappwebview` plugin (MIT).
-
-## Key art
-
-`tanuki-rush/public/art/title-bg.png` and `mark.png` were generated for this
-edition with an AI image model and carry no third-party rights. They replace
-nothing from the original game, which ships no image assets at all.
+Flutter is distributed under a BSD 3-Clause license. The Android shell uses `flutter_inappwebview` and `flutter_local_notifications`; see their respective package licenses.

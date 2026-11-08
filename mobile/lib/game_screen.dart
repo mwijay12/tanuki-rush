@@ -130,12 +130,17 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     controller.addJavaScriptHandler(
       handlerName: 'scheduleStreakReminder',
-      callback: (args) {
+      callback: (args) async {
         final map = args.isNotEmpty && args.first is Map ? args.first as Map : const {};
         final streak = (map['streak'] as num?)?.toInt() ?? 0;
-        NotificationService.instance.scheduleStreakReminder(streak);
+        await NotificationService.instance.scheduleStreakReminder(streak);
         return null;
       },
+    );
+
+    controller.addJavaScriptHandler(
+      handlerName: 'cancelStreakReminder',
+      callback: (args) => NotificationService.instance.cancelStreakReminder(),
     );
   }
 
@@ -184,8 +189,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 },
                 shouldOverrideUrlLoading: (_, action) async {
                   final target = action.request.url;
-                  // Keep the WebView pinned to our own loopback origin.
-                  if (target == null || target.host != widget.gameUri.host) {
+                  // The origin includes scheme and port, not just the host.
+                  if (target == null ||
+                      target.scheme != widget.gameUri.scheme ||
+                      target.host != widget.gameUri.host ||
+                      target.port != widget.gameUri.port) {
                     return NavigationActionPolicy.CANCEL;
                   }
                   return NavigationActionPolicy.ALLOW;

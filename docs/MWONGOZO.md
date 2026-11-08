@@ -1,80 +1,34 @@
-# Mwongozo — jinsi ya kuitumia app kwenye simu yako
+# Mwongozo — Tanuki Rush kwenye simu
 
-## 1. Kuweka APK kwenye simu
+## Kucheza
 
-Faili ya kuinstall iko hapa:
+Fungua mchezo na geuza simu mlalo. Buruta kidole upande wa kushoto kusogea; **JUMP** ni kuruka, **BOOST** ni kuongeza kasi, na **II** ni pause. Kusanya majani kujaza boost. Kwenye kompyuta tumia mishale/A–D, Space/J na Shift/K.
 
-```
-mobile/build/app/outputs/flutter-apk/app-release.apk
-```
+Kila siku kuna **daily missions tatu**. Maliza run upate leaf tokens, na maliza missions upate bonus. Fungua **TRAILS** kwenye mwanzo kutumia tokens kwa rangi tofauti za boost; haziongezi nguvu wala kasi. Rekodi, tokens na settings vinahifadhiwa kwenye kifaa tu, bila internet. Ukifuta app data au uninstall, progress inapotea.
 
-Njia mbili:
+## APK ya majaribio
 
-**Kwa kebo (adb):**
+Angalia [GitHub Releases](https://github.com/mwijay12/tanuki-rush/releases) kwa APK zilizochapishwa. Kama kuna preview, pakua `tanuki-rush-android-preview.apk`, ifungue na ruhusu “Install unknown apps” ikiwa Android itauliza. Android inaweza kuonya kwa sababu haitoki Play Store.
 
-```bash
-adb install -r mobile/build/app/outputs/flutter-apk/app-release.apk
-```
+**Muhimu:** APK ya preview inasainiwa kwa debug key, si key ya production. Builds tofauti zinaweza kuwa na signatures tofauti; unaweza kulazimika ku-uninstall ya zamani kabla ya kusakinisha mpya, na progress itapotea. Ijaribu kwenye simu halisi kabla ya kuisambaza kama release kamili. Play Store inahitaji signing key ya kudumu iliyohifadhiwa salama, pamoja na majaribio.
 
-**Bila kebo:** tuma faili ya APK kwa simu (WhatsApp, USB, Google Drive), ifungue
-kwenye simu, kisha ruhusu "Install unknown apps" kwa app uliyotumia kuifungua.
-Android itaonya kwa sababu APK hii haitoki Play Store — hiyo ni kawaida.
-
-## 2. Kucheza
-
-- Fungua app → mchezo unaanza moja kwa moja, hakuna browser.
-- **Landscape pekee.** Geuza simu kwa pembeni.
-- Vidole: drag upande wa kushoto kwa kusogea kushoto/kulia; vitufe vya **JUMP**,
-  **BOOST**, **BRAKE** viko upande wa kulia.
-- Kitufe cha "back" cha Android: bonyeza mara moja = pause; bonyeza tena ndani ya
-  sekunde 2 = toka.
-
-## 3. Kubadilisha jina la app au package
-
-- Jina linaloonekana kwenye simu: `mobile/android/app/src/main/AndroidManifest.xml`,
-  sifa `android:label`.
-- Package id (inayotakiwa na Play Store): `mobile/android/app/build.gradle.kts`,
-  `applicationId`. Badilisha pia `namespace` na jina la folda ya Kotlin chini ya
-  `android/app/src/main/kotlin/...`.
-
-## 4. Kujenga APK mwenyewe
-
-Unahitaji Flutter SDK na Android SDK. Kisha:
+Kwa kujenga mwenyewe unahitaji Flutter 3.47.9, Java 17, Android SDK, Node 22 na Python 3:
 
 ```bash
+python3 tools/build_web_assets.py
 cd mobile
 flutter pub get
-flutter build apk --release
+flutter analyze --no-pub
+dart run tool/verify_asset_server.dart
+flutter build apk --release --no-pub --target-platform android-arm,android-arm64
 ```
 
-Ukibadilisha mchezo wenyewe (ndani ya `tanuki-rush/`), kumbuka:
+APK inayotengenezwa inakuwa `mobile/build/app/outputs/flutter-apk/app-release.apk`. Kuwa na njia hiyo kwenye mwongozo hakumaanishi tayari imejengwa kwenye kompyuta yako.
 
-```bash
-python3 tools/build_web_assets.py   # hujenga upya assets/web/
-cd mobile && flutter build apk --release
-```
+## Database
 
-## 5. Kwa Play Store (baadaye)
+Kwa leaderboard na kusync baadaye, **Supabase** inapendekezwa: Postgres pamoja na authentication, API na security rules kwenye huduma moja. Kwa sasa mchezo unahifadhi offline tu; hakuna database iliyounganishwa. Maelezo na mambo ya usalama yako kwenye [DATABASE.md](DATABASE.md).
 
-APK ya sasa inasainiwa kwa **debug key** — inatosha kwa simu yako, haitoshi kwa
-Play Store. Unahitaji:
+## Hati miliki
 
-1. Kuunda keystore:
-   ```bash
-   keytool -genkey -v -keystore ~/tanuki-upload.jks -keyalg RSA \
-     -keysize 2048 -validity 10000 -alias upload
-   ```
-2. Faili `mobile/android/key.properties` yenye nenosiri na njia ya keystore.
-3. Kubadilisha `signingConfig` kwenye `app/build.gradle.kts` kutumia keystore hiyo.
-4. `flutter build appbundle --release` (Play Store inapenda `.aab`, sio `.apk`).
-
-Usiweke `key.properties` wala `.jks` kwenye git — `.gitignore` inazizuia tayari.
-
-## 6. Kumbuka kuhusu hati miliki
-
-Mchezo ni wa **たぬ (tanuu5)**, leseni ya MIT. Sheria ni rahisi:
-
-- Unaweza kuutumia, kuubadilisha, na kuusambaza.
-- Lazima uendelee kuweka copyright notice yake (`LICENSE-tanuki-rush`).
-- Kwenye Play Store na GitHub, andika wazi kwamba mchezo wa asili ni wake.
-- Usiseme mchezo wote ni wako — sema ulifanya app ya Android inayouendesha.
+Mchezo wa asili ni wa **tanuu5 (たぬ)**, leseni MIT. Endelea kuweka copyright notice na credit yake unaposambaza. Android shell na mabadiliko ya toleo hili ni kazi ya project hii; angalia [NOTICE.md](../NOTICE.md).
