@@ -29,7 +29,7 @@ Open the URL printed by Vite. Rotate a phone to landscape. The game needs WebGL2
 
 ## Android APK
 
-The [GitHub Releases page](https://github.com/mwijay12/tanuki-rush/releases) is where published APKs will appear. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
+Download the [Android preview release](https://github.com/mwijay12/tanuki-rush/releases/tag/preview-d662b6729f) or check the [Releases page](https://github.com/mwijay12/tanuki-rush/releases) for newer versions. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
 
 **Preview signing is not production signing.** The current build uses an Android debug key. CI can generate a different key for each build, so updating an installed preview may require uninstalling it first, which deletes local progress. It is not suitable for a Play Store upload. Set up a securely backed-up release keystore and test on real phones before production.
 

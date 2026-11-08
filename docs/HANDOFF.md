@@ -14,7 +14,7 @@ Updated 2026-11-08. For user-facing build and release instructions, see [README]
 
 - `npm test` covers deterministic missions, once-per-day bonuses, purchases, save migration, streak dates and rank thresholds.
 - Headless Chromium/WebGL smoke tests exercised the title, tutorial, landscape layout, shop, movement, pause/resume and simulated finish/reward flow. A bot also completed the entire course in approximately 109 simulated seconds, without changing the save. This is not a physical-device playthrough.
-- This sandbox does not have Flutter, Java or Android SDK installed and cannot reach their normal download hosts. Flutter analysis, Dart server checks and the Android APK must be verified by GitHub Actions or on a machine with the toolchain. No physical Android device has been tested here.
+- This sandbox does not have Flutter, Java or Android SDK installed and cannot reach their normal download hosts. [GitHub Actions run 42455306751](https://github.com/mwijay12/tanuki-rush/actions/runs/42455306751) passed Flutter analysis, Dart server checks and the Android APK build. The [debug-signed preview APK](https://github.com/mwijay12/tanuki-rush/releases/tag/preview-d662b6729f) is published. No physical Android device has been tested here.
 - The root GitHub Actions workflow builds an artifact and can publish a debug-signed pre-release when the pushed commit message contains `[release-preview]`. A preview is **not** production signing. Each runner may generate a different debug key, and uninstalling a previous build to change keys deletes progress.
 
 ## Next steps

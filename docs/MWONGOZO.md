@@ -8,7 +8,7 @@ Kila siku kuna **daily missions tatu**. Maliza run upate leaf tokens, na maliza 
 
 ## APK ya majaribio
 
-Angalia [GitHub Releases](https://github.com/mwijay12/tanuki-rush/releases) kwa APK zilizochapishwa. Kama kuna preview, pakua `tanuki-rush-android-preview.apk`, ifungue na ruhusu “Install unknown apps” ikiwa Android itauliza. Android inaweza kuonya kwa sababu haitoki Play Store.
+Pakua APK kwenye [Android preview release](https://github.com/mwijay12/tanuki-rush/releases/tag/preview-d662b6729f) au angalia [GitHub Releases](https://github.com/mwijay12/tanuki-rush/releases) kwa matoleo mapya. Chagua `tanuki-rush-android-preview.apk`, ifungue na ruhusu “Install unknown apps” ikiwa Android itauliza. Android inaweza kuonya kwa sababu haitoki Play Store.
 
 **Muhimu:** APK ya preview inasainiwa kwa debug key, si key ya production. Builds tofauti zinaweza kuwa na signatures tofauti; unaweza kulazimika ku-uninstall ya zamani kabla ya kusakinisha mpya, na progress itapotea. Ijaribu kwenye simu halisi kabla ya kuisambaza kama release kamili. Play Store inahitaji signing key ya kudumu iliyohifadhiwa salama, pamoja na majaribio.
 
