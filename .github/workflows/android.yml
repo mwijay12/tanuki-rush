@@ -68,6 +68,8 @@ jobs:
       - name: Test asset server and stable origin
         working-directory: mobile
         run: ../tools/ci_run.sh dart run tool/verify_asset_server.dart
+      - name: Fetch verified Gradle distribution
+        run: tools/ci_run.sh tools/fetch_gradle_ci.sh
       - name: Build installable APK
         working-directory: mobile
         run: ../tools/ci_run.sh flutter build apk --release --no-pub --target-platform android-arm,android-arm64
