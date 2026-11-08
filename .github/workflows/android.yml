@@ -53,19 +53,7 @@ jobs:
         run: ../tools/ci_run.sh flutter pub get
       - name: Verify resolved Flutter lockfile
         working-directory: mobile
-        run: |
-          if ! git diff --quiet -- pubspec.lock; then
-            # Report the resolved lockfile as diagnostic annotations so it can
-            # be committed when dependencies change; it contains no secrets.
-            python3 - <<'PY'
-          import base64
-          data = base64.b64encode(open('pubspec.lock', 'rb').read()).decode()
-          for i in range(0, len(data), 3000):
-              print(f'::notice title=Resolved lock part {i // 3000:03d}::{data[i:i + 3000]}')
-          PY
-            echo '::error::pubspec.lock changed after flutter pub get; commit the resolved lockfile.'
-            exit 1
-          fi
+        run: ../tools/ci_run.sh git diff --exit-code -- pubspec.lock
       - name: Analyze Flutter app
         working-directory: mobile
         run: ../tools/ci_run.sh flutter analyze --no-pub
