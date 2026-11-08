@@ -10,7 +10,7 @@ android {
     // Pinned deliberately. There is no native code in this project, but AGP
     // still resolves an NDK at configuration time; naming one version keeps the
     // build reproducible instead of following whatever AGP defaults to.
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "27.3.13750724"
 
     compileOptions {
         // flutter_local_notifications uses java.time on older Android versions.

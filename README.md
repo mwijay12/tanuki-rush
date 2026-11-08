@@ -35,7 +35,7 @@ The [GitHub Releases page](https://github.com/mwijay12/tanuki-rush/releases) is 
 
 ### Build from source
 
-Requires Node 22, Python 3, Java 17, Flutter 3.47.9 and Android SDK components for platforms 34 and 36, build-tools 36.0.0 and NDK 27.0.12077973.
+Requires Node 22, Python 3, Java 17, Flutter 3.47.9 and Android SDK components for platforms 34 and 36, build-tools 36.0.0 and NDK 27.3.13750724.
 
 ```bash
 # From the repository root, after editing the game:

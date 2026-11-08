@@ -13,7 +13,7 @@ Updated 2026-11-08. For user-facing build and release instructions, see [README]
 ## Verification in this workspace
 
 - `npm test` covers deterministic missions, once-per-day bonuses, purchases, save migration, streak dates and rank thresholds.
-- A headless Chromium/WebGL smoke test exercised the title, tutorial, landscape layout, shop, movement, pause/resume and simulated finish/reward flow. This is not a complete real-world playthrough.
+- Headless Chromium/WebGL smoke tests exercised the title, tutorial, landscape layout, shop, movement, pause/resume and simulated finish/reward flow. A bot also completed the entire course in approximately 109 simulated seconds, without changing the save. This is not a physical-device playthrough.
 - This sandbox does not have Flutter, Java or Android SDK installed and cannot reach their normal download hosts. Flutter analysis, Dart server checks and the Android APK must be verified by GitHub Actions or on a machine with the toolchain. No physical Android device has been tested here.
 - The root GitHub Actions workflow builds an artifact and can publish a debug-signed pre-release when the pushed commit message contains `[release-preview]`. A preview is **not** production signing. Each runner may generate a different debug key, and uninstalling a previous build to change keys deletes progress.
 
