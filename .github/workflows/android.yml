@@ -39,11 +39,16 @@ jobs:
         env:
           CHROME_BIN: /usr/bin/google-chrome
         run: ../tools/ci_run.sh npm run test:touch
-      - name: Test bundled audio recovery in Chrome
+      - name: Test bundled audio recovery and BOOST mix in Chrome
         working-directory: tanuki-rush
         env:
           CHROME_BIN: /usr/bin/google-chrome
         run: ../tools/ci_run.sh npm run test:audio
+      - name: Test bundled game over and revive in Chrome
+        working-directory: tanuki-rush
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: ../tools/ci_run.sh npm run test:gameover
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

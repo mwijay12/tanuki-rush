@@ -4,7 +4,9 @@
 
 Fungua mchezo; unaweza kucheza simu ikiwa wima au mlalo. Weka dole gumba kwenye nusu ya kushoto ya skrini, **shikilia na buruta** kushoto au kulia kuendesha, kisha achia kusimamisha kugeuza. Tumia dole jingine: **JUMP** ni kuruka, **BOOST** ni kuongeza kasi, na **II** ni pause. Unaweza kubadili **STEER SENSITIVITY** kwenye Settings. Kusanya majani kujaza boost. Kwenye kompyuta tumia mishale/A–D, Space/J na Shift/K.
 
-Sauti ikinyamaza, preview 1.0.2 inajaribu kuirejesha yenyewe. Ikiwa bado haisikiki, bonyeza **Pause → Settings → Restore Audio → Reset**, kisha Resume. Hakikisha pia SOUND iko ON na sauti ya simu imewashwa.
+Ukigonga kizuizi au kuanguka, utaona **GAME OVER**. Chagua **REVIVE FREE** mara moja kwa kila run ili kuendelea kutoka checkpoint ya mwisho bila kupoteza score na majani, au **RETRY FROM START** kuanza upya. Revive ni bure kabisa; hakuna matangazo au internet inayohitajika. Majani hayakingi ajali tena, lakini BOOST bado inaweza kuvunja vizuizi.
+
+Preview 1.0.3 imepunguza na kurahisisha sauti ya BOOST na bado inajaribu kurejesha sauti ikinyamaza. Tatizo la Pixel halijaigwa kwenye majaribio ya browser, kwa hiyo suluhisho bado linahitaji kuthibitishwa kwenye simu. Ikiwa sauti bado haisikiki, bonyeza **Pause → Settings → Restore Audio → Reset**, kisha Resume. Hakikisha pia SOUND iko ON na sauti ya simu imewashwa.
 
 Kila siku kuna **daily missions tatu**. Maliza run upate leaf tokens, na maliza missions upate bonus. Fungua **TRAILS** kwenye mwanzo kutumia tokens kwa rangi tofauti za boost; haziongezi nguvu wala kasi. Rekodi, tokens na settings vinahifadhiwa kwenye kifaa tu, bila internet. Ukifuta app data au uninstall, progress inapotea.
 

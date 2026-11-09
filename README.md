@@ -7,6 +7,7 @@ The original **TANUKI RUSH** game is by [tanuu5](https://github.com/tanuu5/tanuk
 ## Play
 
 - **Start a run:** steer left/right, jump (jump again in the air to home in on an enemy), and boost. On touch screens, put your thumb anywhere on the left half, **hold and drag** left or right, and release to center; use the buttons on the right with your other thumb. Adjust touch steering sensitivity in Settings. On a keyboard use arrows/A–D, Space/J and Shift/K.
+- **Crash or fall:** each run has one optional, free **REVIVE FREE** at the last checkpoint. Score, collected leaves and time are kept; the revive cannot be used again until a new run. **RETRY FROM START** begins a fresh run. Collected leaves refill boost and contribute to score, but no longer absorb crashes. Boosting can still smash obstacles.
 - **Keep improving:** beat your local best time and aim for the next rank.
 - **Daily runs:** three goals rotate with your device's local date. Finish a run to earn leaf tokens; complete goals for a bonus. Each goal pays once per day.
 - **Trail shop:** unlock boost particle colours with tokens earned in-game. Trails are cosmetic and do not affect speed. No purchases or account are needed.
@@ -54,7 +55,7 @@ The asset script installs the locked npm dependencies and builds the game. Fonts
 
 ### CI and preview releases
 
-The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game, rebuilds and checks the offline assets, runs touch simulations in Chrome, checks the Flutter WebView settings and asset server, and builds an APK. To run the browser touch checks locally after rebuilding the assets, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`. These checks do not replace testing on an actual Android WebView/device. A normal branch push produces a downloadable Actions artifact. A push commit containing `[release-preview]` additionally publishes a uniquely tagged **pre-release** with the APK and its SHA-256 checksum.
+The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game, rebuilds and checks the offline assets, runs bundled touch, BOOST audio and crash/revive checks in Chrome, checks the Flutter WebView settings and asset server, and builds an APK. After rebuilding the assets, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`, `test:audio` and `test:gameover` locally. These checks do not replace testing on an actual Android WebView/device. A normal branch push produces a downloadable Actions artifact. A push commit containing `[release-preview]` additionally publishes a uniquely tagged **pre-release** with the APK and its SHA-256 checksum.
 
 ### Why the app runs a loopback server
 

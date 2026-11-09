@@ -26,6 +26,10 @@ export class Input {
     this._padPrev = {};
     this.enabled = true;
     window.addEventListener('keydown', (e) => {
+      // Let focused game-over buttons receive their normal keyboard activation.
+      // Otherwise Enter on RETRY or TITLE would be intercepted as the default
+      // confirm action and could spend the player's free revive instead.
+      if ((e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') && e.target?.closest?.('.gameover button')) return;
       if (e.repeat) { if (this._isGameKey(e.code)) e.preventDefault(); return; }
       this.down.add(e.code);
       this.lastDevice = 'keyboard';

@@ -57,6 +57,12 @@ export class HUD {
     root.appendChild(this.title);
     this.results = el('div', 'screen results hidden');
     root.appendChild(this.results);
+    this.gameOver = el('div', 'screen gameover hidden');
+    this.gameOver.setAttribute('role', 'dialog');
+    this.gameOver.setAttribute('aria-modal', 'true');
+    this.gameOver.setAttribute('aria-labelledby', 'gameover-heading');
+    this.gameOver.tabIndex = -1;
+    root.appendChild(this.gameOver);
     this.pause = el('div', 'screen pause hidden');
     root.appendChild(this.pause);
     this.settings = el('div', 'screen settings hidden');
@@ -103,8 +109,6 @@ export class HUD {
     this.set('leaves', String(leaves));
     this.set('speed', String(Math.round(speed * 3.6)));
     if (section !== undefined) this.set('section', section);
-    const zero = leaves === 0;
-    if (this._zero !== zero) { this._zero = zero; this.leavesRow.classList.toggle('zero', zero); }
     const b = Math.round(boost * 200) / 200;
     if (this._boost !== b) { this._boost = b; this.k.boostFill.style.transform = `scaleX(${b})`; }
     if (this._boosting !== boosting) { this._boosting = boosting; this.boostBar.classList.toggle('active', boosting); }
@@ -382,7 +386,7 @@ export class HUD {
         ${steps.map((s) => `<div class="intro-step"><span class="intro-n">${s.n}</span>
           <div><div class="intro-t">${s.t}</div><div class="intro-d">${s.d}</div></div></div>`).join('')}
       </div>
-      <div class="intro-foot">Collect leaves to refill the gauge · reach the bay before the truck catches you</div>
+      <div class="intro-foot">Collect leaves to refill boost · one free checkpoint revive after a crash or fall</div>
       <button class="btn big" data-go="1">GOT IT</button>`;
     this.intro.classList.remove('hidden');
     this.intro.onclick = (e) => {
@@ -431,6 +435,41 @@ export class HUD {
   }
 
   hideResults() { this.results.classList.add('hidden'); this.results.onclick = null; }
+
+  // ------------------------------------------------------------ game over
+  showGameOver({ score, time, leaves, canRevive, reason }, { onRevive, onRetry, onTitle }) {
+    const description = reason === 'hit' ? 'You crashed!' : 'You fell off the course!';
+    this.gameOver.innerHTML = `
+      <div class="gameover-layout">
+        <section class="gameover-main">
+          <div class="eyebrow">STAGE 01 / HILLSIDE CITY</div>
+          <h2 id="gameover-heading">GAME OVER<span>.</span></h2>
+          <p>${description} ${canRevive ? 'Your run can continue.' : 'Your free revive has been used.'}</p>
+          <div class="gameover-stats">
+            <div><span>TIME</span><strong>${formatTime(time)}</strong></div>
+            <div><span>SCORE</span><strong>${score.toLocaleString()}</strong></div>
+            <div><span>LEAVES</span><strong>${leaves}</strong></div>
+          </div>
+        </section>
+        <section class="gameover-choices" aria-label="Choose what to do next">
+          ${canRevive ? `<div class="gameover-note"><b>ONE FREE REVIVE</b><span>Continue from your last checkpoint. Score and leaves stay with you.</span></div>
+            <button class="ride-btn gameover-button" data-gameover="revive">REVIVE FREE <span aria-hidden="true">↗</span></button>` :
+            '<div class="gameover-note"><b>REVIVE USED</b><span>Start a new run to get another free revive.</span></div>'}
+          <button class="garage-btn gameover-button" data-gameover="retry">RETRY FROM START</button>
+          <button class="garage-btn gameover-button" data-gameover="title">TITLE</button>
+        </section>
+      </div>`;
+    this.gameOver.classList.remove('hidden');
+    this.gameOver.onclick = (e) => {
+      const action = e.target.closest('[data-gameover]')?.dataset.gameover;
+      if (action === 'revive' && canRevive) onRevive();
+      else if (action === 'retry') onRetry();
+      else if (action === 'title') onTitle();
+    };
+    this.gameOver.focus({ preventScroll: true });
+  }
+
+  hideGameOver() { this.gameOver.classList.add('hidden'); this.gameOver.onclick = null; }
 
   // ------------------------------------------------------------------ pause
   showPause({ onResume, onRestart, onTitle, onSettings = () => {} }) {

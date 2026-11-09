@@ -545,37 +545,22 @@ export class Player {
     if (trick) { this.trick.active = true; this.trick.count = 0; this.trick.score = 0; }
   }
 
-  /** Damage. Returns true if something happened. */
-  hurt({ from = 'front', lethal = false } = {}) {
+  /** A collision ends the attempt; collected leaves are score, not extra lives. */
+  hurt() {
     if (this.invuln > 0 || this.state === 'dead' || this.state === 'goal') return false;
-    if (this.leaves <= 0 || lethal) { this.die('hit'); return true; }
-    const lost = this.leaves;
-    this.leaves = 0;
-    this.events.emit('hurt', { lost, pos: this.pos.clone() });
-    this.main.project(this.pos, this.mainS, this.proj);
-    const F = this.proj.frame;
-    const th = Math.hypot(F.tan.x, F.tan.z) || 1;
-    const dir = from === 'behind' ? 1 : -1;
-    const fwdSpeed = from === 'behind' ? Math.max(this.speed, 30) + 12 : 7;
-    this.vel.set((F.tan.x / th) * fwdSpeed * dir, 12, (F.tan.z / th) * fwdSpeed * dir);
-    this.track = this.main;
-    this._toAir();
-    this.hurtTimer = 0.55;
-    this.invuln = 2.2;
-    this.ball = false;
-    this.boosting = false;
-    this.homing = null;
-    this.trick.active = false;
+    this.die('hit');
     return true;
   }
 
   die(reason) {
-    if (this.state === 'dead') return;
+    if (this.state === 'dead' || this.state === 'goal') return;
     this.deadReason = reason;
     this.state = 'dead';
     this.deadTimer = 0;
+    const wasBoosting = this.boosting;
     this.boosting = false;
     this.ball = false;
+    if (wasBoosting) this.events.emit('boostEnd');
     this.events.emit('death', { reason });
   }
 

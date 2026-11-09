@@ -169,40 +169,23 @@ export class LoopBank {
 
   _buildBoost() {
     const n = [];
+    // Keep the continuous effect inexpensive and below the music. The old
+    // driven, multi-oscillator roar was louder than the stage track and could
+    // mask it for the entire hold. This simpler path also avoids running a
+    // WaveShaper for the lifetime of the audio context on mobile devices.
     const src = this._noise(n);
-    const lp = this._filter('lowpass', 900, 0.8, n);
-    const bp = this._filter('bandpass', 700, 1.5, n);
-    const bpGain = this._gain(0.8, n);
-    const noiseGain = this._gain(0.9, n);
-    src.connect(lp);
-    lp.connect(noiseGain);
-    src.connect(bp);
-    bp.connect(bpGain);
-    bpGain.connect(noiseGain);
-    // Beating low saws = engine roar
-    const s1 = this._osc('sawtooth', 52, n);
-    const s2 = this._osc('sawtooth', 52.7, n);
-    const sLp = this._filter('lowpass', 320, 1, n);
-    const sGain = this._gain(0.35, n);
-    s1.connect(sLp);
-    s2.connect(sLp);
-    sLp.connect(sGain);
-    // Flutter
-    const mix = this._gain(0.88, n);
-    const fl = this._osc('sine', 16, n);
-    const flDepth = this._gain(0.12, n);
-    fl.connect(flDepth);
-    flDepth.connect(mix.gain);
-    noiseGain.connect(mix);
-    sGain.connect(mix);
-    const drv = this.ctx.createWaveShaper();
-    drv.curve = this.curves.drive;
-    n.push(drv);
+    const hp = this._filter('highpass', 180, 0.7, n);
+    const lp = this._filter('lowpass', 900, 0.7, n);
     const out = this._gain(0, n);
-    mix.connect(drv);
-    drv.connect(out);
+    src.connect(hp);
+    hp.connect(lp);
+    lp.connect(out);
+    const tone = this._osc('triangle', 80, n);
+    const toneGain = this._gain(0.18, n);
+    tone.connect(toneGain);
+    toneGain.connect(out);
     out.connect(this.dest);
-    return { lp, s1, s2, out, nodes: n };
+    return { lp, tone, out, nodes: n };
   }
 
   setBoost(active) {
@@ -210,17 +193,9 @@ export class LoopBank {
     if (!this._changed('boost', active ? 1 : 0)) return;
     const b = this.loops.boost || (this.loops.boost = this._buildBoost());
     const now = this.ctx.currentTime;
-    if (active) {
-      b.out.gain.setTargetAtTime(0.36, now, 0.05);
-      b.lp.frequency.setTargetAtTime(2800, now, 0.25); // rev-up sweep
-      b.s1.frequency.setTargetAtTime(60, now, 0.3);
-      b.s2.frequency.setTargetAtTime(60.8, now, 0.3);
-    } else {
-      b.out.gain.setTargetAtTime(0, now, 0.15);
-      b.lp.frequency.setTargetAtTime(900, now, 0.2);
-      b.s1.frequency.setTargetAtTime(52, now, 0.3);
-      b.s2.frequency.setTargetAtTime(52.7, now, 0.3);
-    }
+    b.out.gain.setTargetAtTime(active ? 0.22 : 0, now, active ? 0.05 : 0.12);
+    b.lp.frequency.setTargetAtTime(active ? 2600 : 900, now, 0.25);
+    b.tone.frequency.setTargetAtTime(active ? 100 : 80, now, 0.3);
   }
 
   // --- chasing truck ----------------------------------------------------------------

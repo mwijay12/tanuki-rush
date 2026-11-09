@@ -1,7 +1,9 @@
 // sequencer.js — sample-accurate lookahead scheduler.
 //
 // A JS timer wakes up every ~25 ms and schedules every 16th-note step that falls
-// inside the lookahead window on the AudioContext clock. Step times are always
+// inside a 300 ms lookahead window on the AudioContext clock. The extra margin
+// helps music survive brief rendering/GC stalls during fast mobile gameplay.
+// Step times are always
 // derived from an integer step counter (t0 + step * stepDur), so there is no
 // floating-point drift even after hours of looping.
 //
@@ -15,7 +17,7 @@ export class Sequencer {
    * @param {number} stepDur seconds per step
    * @param {(step: number, time: number) => (boolean|void)} onStep return false to stop
    */
-  constructor(ctx, stepDur, onStep, { lookahead = 0.12, interval = 25, maxLag = 0.3 } = {}) {
+  constructor(ctx, stepDur, onStep, { lookahead = 0.3, interval = 25, maxLag = 0.3 } = {}) {
     this.ctx = ctx;
     this.stepDur = stepDur;
     this.onStep = onStep;

@@ -19,7 +19,7 @@ export const SFX_LIMITS = {
  */
 export const SFX_GAIN = {
   jump: 2.1, homing: 1.25, lockon: 2.2, airdash: 2.2, land: 0.9, leaf: 1.7, leafScatter: 1.7,
-  hurt: 1, enemyPop: 1, boostStart: 1, dashPanel: 1.6, spring: 1.1, ramp: 1, trick: 1.6,
+  hurt: 1, enemyPop: 1, boostStart: 0.6, dashPanel: 1.6, spring: 1.1, ramp: 1, trick: 1.6,
   trickFinish: 1.5, dashRing: 1.6, railLand: 1.5, checkpoint: 1.4, countdown: 1.5, go: 1.1,
   death: 0.8, truckHorn: 1.3, crash: 1.1, carHit: 1.4, poof: 1.35, uiMove: 3, uiSelect: 2.2,
   rankReveal: 0.85, whoosh: 1.75,
@@ -163,33 +163,18 @@ export const SFX = {
     v.boom(95 * p, 40, t, 0.25, 0.09);
   },
 
-  // Boost: sonic-boom crack, huge filtered whoosh, driven sub boom, turbine rise.
+  // Boost: a short, restrained whoosh and rising tone. Avoid an oversized
+  // driven transient and reverb on top of the already-playing stage music.
   boostStart(v) {
     const { t, p } = v;
-    const c = v.noiseSrc(t, t + 0.2);
-    const hp = v.filter('highpass', 1800);
-    c.connect(hp);
-    hp.connect(v.env(0.36, 0.001, 0.018));
-    const n = v.noiseSrc(t, t + 1.8);
-    const lp = v.filter('lowpass', 300, 1.1);
-    lp.frequency.setValueAtTime(300, t);
-    lp.frequency.exponentialRampToValueAtTime(7000 * p, t + 0.22);
-    lp.frequency.setTargetAtTime(1200, t + 0.22, 0.3);
+    const n = v.noiseSrc(t, t + 0.7);
+    const lp = v.filter('lowpass', 500, 0.8);
+    v.sweep(lp.frequency, 500, 3200 * p, t, 0.18);
     n.connect(lp);
-    lp.connect(v.envHold(0.4, 0.03, 0.2, 0.22));
-    const b = v.osc('sine', 95 * p, t, t + 1.4);
-    v.sweep(b.frequency, 95 * p, 32, t, 0.5);
-    const bg = v.gain(1.6);
-    const drv = v.shaper('drive');
-    b.connect(bg);
-    bg.connect(drv);
-    drv.connect(v.env(0.42, 0.003, 0.18));
-    const s = v.osc('sawtooth', 170 * p, t, t + 1.2);
-    v.sweep(s.frequency, 170 * p, 560 * p, t, 0.45);
-    const slp = v.filter('lowpass', 1500, 2);
-    s.connect(slp);
-    slp.connect(v.envHold(0.1, 0.05, 0.25, 0.12));
-    v.send(v.out, 0.2);
+    lp.connect(v.envHold(0.3, 0.015, 0.08, 0.1));
+    const tone = v.osc('triangle', 170 * p, t, t + 0.55);
+    v.sweep(tone.frequency, 170 * p, 480 * p, t, 0.25);
+    tone.connect(v.envHold(0.13, 0.02, 0.1, 0.08));
   },
 
   // Dash panel: electric zip (saw stack sweep + crackle).
