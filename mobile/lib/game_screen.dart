@@ -43,8 +43,21 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Immersive mode is dropped by the system after a dialog, rotation, or
-    // app switch; re-apply it when we come back to the foreground.
-    if (state == AppLifecycleState.resumed) _enterImmersiveMode();
+    // app switch; re-apply it and let the game check its Web Audio context.
+    if (state == AppLifecycleState.resumed) {
+      _enterImmersiveMode();
+      unawaited(_notifyGameResumed());
+    }
+  }
+
+  Future<void> _notifyGameResumed() async {
+    try {
+      await _controller?.evaluateJavascript(
+        source: "window.dispatchEvent(new Event('tanuki:app-resumed'));",
+      );
+    } catch (error) {
+      debugPrint('[game] audio resume notification failed: $error');
+    }
   }
 
   void _enterImmersiveMode() {

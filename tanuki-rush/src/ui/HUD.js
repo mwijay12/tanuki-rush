@@ -262,7 +262,7 @@ export class HUD {
 
   // ------------------------------------------------------------------ settings
   /** Modal settings panel. Purely a view: every change is applied by the caller. */
-  showSettings({ quality, onQuality, muted, onMute, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false, reminders = null, onReminders = async () => false }) {
+  showSettings({ quality, onQuality, muted, onMute, onResetAudio = async () => false, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false, reminders = null, onReminders = async () => false }) {
     const qLabel = { low: 'LOW', mid: 'MID', high: 'HIGH' };
     const sensLabel = (d) => (d <= 32 ? 'HIGH' : d >= 70 ? 'LOW' : 'MID');
     const sensStep = (dir) => {
@@ -280,6 +280,8 @@ export class HUD {
           <span class="set-ctl">${['low', 'mid', 'high'].map((q) => `<button class="btn ${q === quality ? 'sel' : ''}" data-q="${q}">${qLabel[q]}</button>`).join('')}</span></div>
         <div class="set-row"><span class="set-label">SOUND</span>
           <span class="set-ctl"><button class="btn" data-mute="1">${muted ? 'OFF' : 'ON'}</button></span></div>
+        <div class="set-row"><span class="set-label">RESTORE AUDIO<span class="set-hint">if sound stops</span></span>
+          <span class="set-ctl"><button class="btn" data-reset-audio="1" aria-live="polite">RESET</button></span></div>
         <div class="set-row"><span class="set-label">EFFECTS</span>
           <span class="set-ctl"><button class="btn" data-softfx="1">${softFx ? 'REDUCED' : 'FULL'}</button></span></div>
         <div class="set-row"><span class="set-label">STEER SENSITIVITY<span class="set-hint">touch only</span></span>
@@ -297,6 +299,16 @@ export class HUD {
       if (q) { e.stopPropagation(); onQuality(q.dataset.q); this.settings.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('sel', b === q)); return; }
       const m = e.target.closest('[data-mute]');
       if (m) { e.stopPropagation(); m.textContent = onMute() ? 'OFF' : 'ON'; return; }
+      const resetAudio = e.target.closest('[data-reset-audio]');
+      if (resetAudio) {
+        e.stopPropagation();
+        resetAudio.disabled = true;
+        resetAudio.textContent = 'RESETTING…';
+        try { resetAudio.textContent = await onResetAudio() ? 'DONE' : 'TRY AGAIN'; }
+        catch (_) { resetAudio.textContent = 'TRY AGAIN'; }
+        finally { resetAudio.disabled = false; }
+        return;
+      }
       const f = e.target.closest('[data-softfx]');
       if (f) { e.stopPropagation(); f.textContent = onSoftFx() ? 'REDUCED' : 'FULL'; return; }
       const h = e.target.closest('[data-haptics]');

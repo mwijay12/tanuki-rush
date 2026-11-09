@@ -11,7 +11,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
-    "test:touch": "node --test test/touch.e2e.mjs"
+    "test:touch": "node --test test/touch.e2e.mjs",
+    "test:audio": "node --test test/audio.e2e.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

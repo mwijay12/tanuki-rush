@@ -4,6 +4,8 @@
 
 Fungua mchezo; unaweza kucheza simu ikiwa wima au mlalo. Weka dole gumba kwenye nusu ya kushoto ya skrini, **shikilia na buruta** kushoto au kulia kuendesha, kisha achia kusimamisha kugeuza. Tumia dole jingine: **JUMP** ni kuruka, **BOOST** ni kuongeza kasi, na **II** ni pause. Unaweza kubadili **STEER SENSITIVITY** kwenye Settings. Kusanya majani kujaza boost. Kwenye kompyuta tumia mishale/A–D, Space/J na Shift/K.
 
+Sauti ikinyamaza, preview 1.0.2 inajaribu kuirejesha yenyewe. Ikiwa bado haisikiki, bonyeza **Pause → Settings → Restore Audio → Reset**, kisha Resume. Hakikisha pia SOUND iko ON na sauti ya simu imewashwa.
+
 Kila siku kuna **daily missions tatu**. Maliza run upate leaf tokens, na maliza missions upate bonus. Fungua **TRAILS** kwenye mwanzo kutumia tokens kwa rangi tofauti za boost; haziongezi nguvu wala kasi. Rekodi, tokens na settings vinahifadhiwa kwenye kifaa tu, bila internet. Ukifuta app data au uninstall, progress inapotea.
 
 ## APK ya majaribio

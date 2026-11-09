@@ -53,7 +53,11 @@ for (const [orientation, viewport] of [
       hasTouch: true,
     });
     const page = await context.newPage();
-    await page.addInitScript(() => localStorage.setItem('tanuki_intro', '1'));
+    await page.addInitScript(() => {
+      localStorage.setItem('tanuki_intro', '1');
+      // Exercise settings with the additional native-only reminder row.
+      window.flutter_inappwebview = { callHandler: () => Promise.resolve(null) };
+    });
     await page.goto(`http://127.0.0.1:${server.address().port}/?debug&q=low`, { waitUntil: 'networkidle', timeout: 60_000 });
     await page.waitForFunction(() => window.__game?.state === 'title', null, { timeout: 60_000 });
     await page.locator('[data-start]').tap();
@@ -145,6 +149,9 @@ for (const [orientation, viewport] of [
     await touch('touchEnd', []);
     await page.locator('[data-a=settings]').tap();
     assert.equal(await page.locator('[data-sensval]').isVisible(), true, 'settings should open while paused');
+    await page.locator('[data-reset-audio]').tap();
+    await page.waitForFunction(() => document.querySelector('[data-reset-audio]')?.textContent === 'DONE', null, { timeout: 30_000 });
+    assert.equal((await state()).gameState, 'paused', 'resetting audio should not resume the run');
     await page.locator('.settings:not(.credits):not(.intro) [data-close]').tap();
     assert.equal(await page.locator('[data-sensval]').isVisible(), false, 'back should return to pause');
     await page.locator('[data-a=resume]').tap();

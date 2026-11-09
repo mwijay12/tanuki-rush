@@ -361,6 +361,11 @@ export class Game {
         this.muted = !this.muted; this.save.muted = this.muted; this._writeSave();
         this.audio.setMuted(this.muted); return this.muted;
       },
+      onResetAudio: async () => {
+        await this._initAudio();
+        if (this.audio === NULL_AUDIO || typeof this.audio.reset !== 'function') return false;
+        return this.audio.reset();
+      },
       softFx: this.fxScale < 1,
       onSoftFx: () => {
         this.save.softFx = !this.save.softFx;
