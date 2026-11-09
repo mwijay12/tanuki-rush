@@ -12,12 +12,11 @@ typedef WebAssetLoader = Future<Uint8List?> Function(String assetKey);
 /// Why not `file://`?
 ///   * Vite emits ES modules (`<script type="module">`) plus code-split chunks.
 ///     Chromium refuses to load module scripts from an opaque `file://` origin.
-///   * `localStorage` (used for best times / records) is unreliable or blocked
-///     on `file://`, but works normally on a loopback HTTP origin.
+///   * `localStorage` (used for legacy migration and the pending-write journal)
+///     is unreliable or blocked on `file://`, but works on a loopback origin.
 ///
-/// Use a stable [listenPort] for the game: WebView localStorage is scoped to
-/// the complete origin, including the port. Port 0 is useful only for tests or
-/// callers that do not need persistent browser storage.
+/// Use a stable [listenPort]: the old save and journal are scoped to the entire
+/// WebView origin, including the port. Port 0 is useful only for tests.
 class WebAssetServer {
   WebAssetServer({
     required this.loadAsset,

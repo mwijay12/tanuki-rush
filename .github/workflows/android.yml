@@ -49,6 +49,11 @@ jobs:
         env:
           CHROME_BIN: /usr/bin/google-chrome
         run: ../tools/ci_run.sh npm run test:gameover
+      - name: Test bundled native-storage bridge and migration in Chrome
+        working-directory: tanuki-rush
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: ../tools/ci_run.sh npm run test:storage
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -72,7 +77,7 @@ jobs:
       - name: Analyze Flutter app
         working-directory: mobile
         run: ../tools/ci_run.sh flutter analyze --no-pub
-      - name: Test WebView touch configuration
+      - name: Test Flutter bridge, native storage UI and WebView settings
         working-directory: mobile
         run: ../tools/ci_run.sh flutter test --no-pub
       - name: Test asset server and stable origin
@@ -83,6 +88,9 @@ jobs:
       - name: Build installable APK
         working-directory: mobile
         run: ../tools/ci_run.sh flutter build apk --release --no-pub --target-platform android-arm,android-arm64
+      - name: Test Android SQLite migrations, transactions and persistence
+        working-directory: mobile/android
+        run: ../../tools/ci_run.sh ./gradlew :app:testDebugUnitTest --no-daemon
       - name: Verify APK signature, package and ARM architectures
         run: |
           apk=mobile/build/app/outputs/flutter-apk/app-release.apk

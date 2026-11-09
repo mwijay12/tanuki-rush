@@ -7,6 +7,8 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'app_theme.dart';
 import 'game_webview_settings.dart';
+import 'local_database.dart';
+import 'local_storage_ui.dart';
 import 'notification_service.dart';
 
 /// Hosts the game. The WebView only ever talks to the loopback server this app
@@ -23,9 +25,17 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   InAppWebViewController? _controller;
+  final LocalDatabase _localDatabase = const LocalDatabase();
+  final ValueNotifier<String> _storageStatus = ValueNotifier('loading');
   bool _firstFramePainted = false;
   String? _fatalError;
   DateTime? _lastBackPress;
+
+  // The query selects the native backend without changing the stable origin.
+  Uri get _gameUri => widget.gameUri.replace(queryParameters: {
+        ...widget.gameUri.queryParameters,
+        'native': '1',
+      });
 
   @override
   void initState() {
@@ -37,6 +47,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _storageStatus.dispose();
     super.dispose();
   }
 
@@ -88,7 +99,24 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       return;
     }
 
+    if (_storageStatus.value == 'saving' || _storageStatus.value == 'error') {
+      final leave = await confirmExitWithUnsavedChanges(
+        context,
+        onRetry: () => unawaited(_retryStorage()),
+      );
+      if (!leave || !mounted) return;
+    }
     widget.onQuit();
+  }
+
+  Future<void> _retryStorage() async {
+    try {
+      await _controller?.evaluateJavascript(
+        source: "window.dispatchEvent(new Event('tanuki:storage-retry'));",
+      );
+    } catch (error) {
+      debugPrint('[game] storage retry notification failed: $error');
+    }
   }
 
   /// The game pauses on `Esc` / `P`; synthesising the key keeps pause semantics
@@ -114,6 +142,69 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   /// `window.flutter_inappwebview.callHandler(name, ...)`. The web build calls
   /// these through src/platform.js and falls back to Web APIs when absent.
   void _registerBridge(InAppWebViewController controller) {
+    controller.addJavaScriptHandler(
+      handlerName: 'localStoreBootstrap',
+      callback: (args) async {
+        try {
+          return await _localDatabase.bootstrap(args.isEmpty ? null : args.first);
+        } catch (error) {
+          debugPrint('[storage] could not open local database: ${error.runtimeType}');
+          return {'ok': false};
+        }
+      },
+    );
+    controller.addJavaScriptHandler(
+      handlerName: 'localStoreWrite',
+      callback: (args) async {
+        if (mounted) _storageStatus.value = 'saving';
+        try {
+          return await _localDatabase.write(args.isEmpty ? null : args.first);
+        } catch (error) {
+          if (mounted) _storageStatus.value = 'error';
+          debugPrint('[storage] local database write failed: ${error.runtimeType}');
+          return {'ok': false};
+        }
+      },
+    );
+    controller.addJavaScriptHandler(
+      handlerName: 'localStoreStatus',
+      callback: (args) {
+        final data = args.isNotEmpty && args.first is Map ? args.first as Map : const {};
+        final value = data['status'];
+        if (mounted && value is String && {'saving', 'saved', 'error'}.contains(value)) {
+          _storageStatus.value = value;
+        }
+        return null;
+      },
+    );
+    controller.addJavaScriptHandler(
+      handlerName: 'localStoreStartupError',
+      callback: (_) {
+        if (mounted) {
+          setState(() {
+            _fatalError = 'Hifadhi ya simu haikufunguka. Maendeleo hayajafutwa. '
+                'Angalia nafasi na ujaribu tena.\n\n'
+                'Could not open device storage. Saved data was not deleted. '
+                'Check free space and retry.';
+          });
+        }
+        return null;
+      },
+    );
+    controller.addJavaScriptHandler(
+      handlerName: 'showStorageInfo',
+      callback: (_) async {
+        if (mounted) {
+          await showLocalStorageDetails(
+            context,
+            status: _storageStatus,
+            onRetry: () => unawaited(_retryStorage()),
+          );
+        }
+        return null;
+      },
+    );
+
     controller.addJavaScriptHandler(
       handlerName: 'haptic',
       callback: (args) {
@@ -163,7 +254,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       _fatalError = null;
       _firstFramePainted = false;
     });
-    await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(widget.gameUri.toString())));
+    _storageStatus.value = 'loading';
+    await _controller?.loadUrl(urlRequest: URLRequest(url: WebUri(_gameUri.toString())));
   }
 
   @override
@@ -182,7 +274,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           children: [
             Positioned.fill(
               child: InAppWebView(
-                initialUrlRequest: URLRequest(url: WebUri(widget.gameUri.toString())),
+                initialUrlRequest: URLRequest(url: WebUri(_gameUri.toString())),
                 initialSettings: _settings,
                 onWebViewCreated: (controller) {
                   _controller = controller;
@@ -221,6 +313,13 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             ),
             if (!_firstFramePainted && error == null) const _LoadingOverlay(),
             if (error != null) _ErrorOverlay(message: error, onRetry: _reload),
+            if (error == null)
+              ValueListenableBuilder<String>(
+                valueListenable: _storageStatus,
+                builder: (_, status, __) => status == 'error'
+                    ? LocalStorageWarning(onRetry: () => unawaited(_retryStorage()))
+                    : const SizedBox.shrink(),
+              ),
           ],
         ),
       ),

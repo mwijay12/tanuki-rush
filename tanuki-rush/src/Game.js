@@ -20,7 +20,8 @@ import { Objects } from './objects/Objects.js';
 import { Truck } from './objects/Truck.js';
 import { HUD, formatTime } from './ui/HUD.js';
 import { tickStreak, activeStreak, tierInfo, missionStatus, awardRun, normalizeProgress, selectTrail, equippedTrail, TRAILS } from './progression.js';
-import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, requestNotifications, cancelStreakReminder, isNativeApp } from './platform.js';
+import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, requestNotifications, cancelStreakReminder, isNativeApp, showNativeStorageInfo } from './platform.js';
+import { gameStorage } from './storage.js';
 import { setAnisotropy } from './core/textures.js';
 import { Bot } from './core/Bot.js';
 
@@ -111,12 +112,12 @@ export class Game {
   // ======================================================================= setup
   _loadSave() {
     try {
-      const save = JSON.parse(localStorage.getItem(STORE_KEY));
+      const save = JSON.parse(gameStorage.getItem(STORE_KEY));
       return save && typeof save === 'object' && !Array.isArray(save) ? save : {};
     } catch { return {}; }
   }
   _writeSave() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(this.save)); } catch { /* storage unavailable */ }
+    gameStorage.setItem(STORE_KEY, JSON.stringify(this.save));
   }
 
   _loadOptional() {
@@ -391,6 +392,8 @@ export class Game {
       ...this._settingsBindings(),
       haptics: hapticsEnabled(),
       onHaptics: () => { const on = !hapticsEnabled(); setHaptics(on); if (on) haptic('select'); return on; },
+      deviceStorage: gameStorage.native,
+      onDeviceStorage: showNativeStorageInfo,
       reminders: isNativeApp() ? !!this.save.reminders : null,
       onReminders: async () => {
         if (this.save.reminders) {
@@ -446,8 +449,8 @@ export class Game {
     });
     this.audio.setWind(0); this.audio.setTruck(0); this.audio.setGrind(false); this.audio.setBoost(false);
     this.audio.playMusic('title');
-    if (!localStorage.getItem('tanuki_intro')) {
-      this.hud.showIntro(() => { try { localStorage.setItem('tanuki_intro', '1'); } catch (_) {} });
+    if (!gameStorage.getItem('tanuki_intro')) {
+      this.hud.showIntro(() => { gameStorage.setItem('tanuki_intro', '1'); });
     }
   }
 

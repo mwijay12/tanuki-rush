@@ -4,7 +4,13 @@
 
 ## What exists today
 
-No remote database, account, leaderboard or cloud sync is configured. Best records, three daily missions, tokens, owned trails and settings live in local WebView/browser storage. The game works offline. The on-device daily missions use the device's **local calendar date**; they are not a shared online competition.
+Android has an **app-private SQLite database** (`tanuki_rush.db`) for progress and settings. The Three.js game still runs in a WebView; it talks to the Android database through a narrow Flutter/Kotlin bridge, not direct SQL. The browser edition continues to use browser `localStorage`. Neither version needs internet to play. The daily missions use the device's **local calendar date**; they are not a shared online competition.
+
+On the first compatible in-place update, the Android app reads the old WebView save at the unchanged `http://127.0.0.1:43853` origin, then transactionally migrates progress, steering sensitivity, haptics and onboarding state. Original keys are left intact. After migration, SQLite is authoritative. Startup stops with a retry message if the database or legacy save cannot be safely opened rather than silently starting over. Saves from an older random origin are not discoverable by this migration.
+
+Writes are ordered, revisioned and committed in SQLite transactions on a background thread. Until a write is acknowledged, a small WebView `localStorage` journal is retained and replayed at startup; it is a best-effort safeguard, not a guarantee against every crash, full disk or OS storage failure. A native warning and retry action appear if a save fails; the player is warned before exiting with unsaved changes. **Settings → Device storage → Details** shows the native storage status. Each stored progress record is limited to 1 MiB and each setting to 4 KiB; an oversized or invalid save stops migration instead of being discarded.
+
+There is no account, remote database, leaderboard, app-managed backup or cross-device sync. Uninstalling, clearing app data, changing phone, or installing an APK signed with a different key may lose local data. Android/system backups are not an app-supported recovery method. In particular, debug-signed preview APKs from separate CI builds may not update in place; **do not uninstall an old build containing progress you need to keep**. A stable, securely backed-up production signing key and a tested export/backup plan are needed before release.
 
 ## Suggested next milestone
 

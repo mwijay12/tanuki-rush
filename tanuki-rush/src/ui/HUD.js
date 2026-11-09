@@ -1,4 +1,5 @@
 import './hud.css';
+import { gameStorage } from '../storage.js';
 
 const LEAF_SVG = `<svg class="leaf-icon" viewBox="0 0 40 40"><path d="M20 2 C31 10 33 24 20 36 C7 24 9 10 20 2 Z" fill="#ffc629" stroke="#0c1633" stroke-width="3"/><path d="M20 6 L20 37" stroke="#d98a0b" stroke-width="2.5"/></svg>`;
 
@@ -84,7 +85,7 @@ export class HUD {
     this._last = {};
     // Touch steering divisor: smaller = more sensitive. Persisted on its own so
     // the game's save schema does not need to change.
-    this.steerDiv = Number(localStorage.getItem('tanuki_steerDiv')) || 50;
+    this.steerDiv = Number(gameStorage.getItem('tanuki_steerDiv')) || 50;
     this._buildTouch();
   }
 
@@ -266,7 +267,7 @@ export class HUD {
 
   // ------------------------------------------------------------------ settings
   /** Modal settings panel. Purely a view: every change is applied by the caller. */
-  showSettings({ quality, onQuality, muted, onMute, onResetAudio = async () => false, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false, reminders = null, onReminders = async () => false }) {
+  showSettings({ quality, onQuality, muted, onMute, onResetAudio = async () => false, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false, reminders = null, onReminders = async () => false, deviceStorage = false, onDeviceStorage = () => {} }) {
     const qLabel = { low: 'LOW', mid: 'MID', high: 'HIGH' };
     const sensLabel = (d) => (d <= 32 ? 'HIGH' : d >= 70 ? 'LOW' : 'MID');
     const sensStep = (dir) => {
@@ -274,7 +275,7 @@ export class HUD {
       const i = steps.indexOf(this.steerDiv);
       const next = steps[Math.max(0, Math.min(steps.length - 1, (i === -1 ? 1 : i) + dir))];
       this.steerDiv = next;
-      localStorage.setItem('tanuki_steerDiv', String(next));
+      gameStorage.setItem('tanuki_steerDiv', String(next));
       return sensLabel(next);
     };
     this.settings.innerHTML = `
@@ -294,6 +295,8 @@ export class HUD {
           <span class="set-ctl"><button class="btn" data-haptics="1">${haptics ? 'ON' : 'OFF'}</button></span></div>`}
         ${reminders === null ? '' : `<div class="set-row"><span class="set-label">REMINDERS<span class="set-hint">optional notifications</span></span>
           <span class="set-ctl"><button class="btn" data-reminders="1">${reminders ? 'ON' : 'OFF'}</button></span></div>`}
+        ${deviceStorage ? `<div class="set-row"><span class="set-label">DEVICE STORAGE<span class="set-hint">offline</span></span>
+          <span class="set-ctl"><button class="btn" data-device-storage="1">DETAILS</button></span></div>` : ''}
       </div>
       <button class="btn big" data-close="1">BACK</button>
       <div class="credit">© 2026 Mwijay · game by tanuu5 · MIT</div>`;
@@ -317,6 +320,7 @@ export class HUD {
       if (f) { e.stopPropagation(); f.textContent = onSoftFx() ? 'REDUCED' : 'FULL'; return; }
       const h = e.target.closest('[data-haptics]');
       if (h) { e.stopPropagation(); h.textContent = onHaptics() ? 'ON' : 'OFF'; return; }
+      if (e.target.closest('[data-device-storage]')) { e.stopPropagation(); onDeviceStorage(); return; }
       const remindersButton = e.target.closest('[data-reminders]');
       if (remindersButton) {
         e.stopPropagation();

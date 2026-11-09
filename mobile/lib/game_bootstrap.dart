@@ -7,8 +7,8 @@ import 'web_asset_server.dart';
 /// Directory (inside the Flutter asset bundle) that holds the compiled game.
 const String webAssetDir = 'assets/web/';
 
-/// Part of the WebView origin. Do not change after shipping: localStorage
-/// (records, settings, missions and purchases) is scoped to this exact port.
+/// Part of the WebView origin. Do not change after shipping: the legacy-save
+/// migration and the pending-write journal are scoped to this exact port.
 const int gameStoragePort = 43853;
 
 /// Boots the loopback HTTP server that serves the compiled web build.
