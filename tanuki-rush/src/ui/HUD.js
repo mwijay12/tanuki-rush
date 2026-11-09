@@ -65,10 +65,12 @@ export class HUD {
     root.appendChild(this.credits);
     this.intro = el('div', 'screen settings intro hidden');
     root.appendChild(this.intro);
+    this.shop = el('div', 'screen shop hidden');
+    root.appendChild(this.shop);
 
     this.loading = el('div', 'loading', 'LOADING…');
     this.loading.style.backgroundImage =
-      "linear-gradient(rgba(10,26,68,.86), rgba(10,26,68,.96)), url('./art/title-bg.png')";
+      "linear-gradient(rgba(10,26,68,.82), rgba(10,26,68,.96)), url('./og-image.jpg')";
     this.loading.style.backgroundSize = 'cover';
     this.loading.style.backgroundPosition = 'center';
     root.appendChild(this.loading);
@@ -169,62 +171,102 @@ export class HUD {
   clearHint() { if (this.hintEl) this.hintEl.classList.remove('show'); }
 
   // ------------------------------------------------------------------ title
-  showTitle({ onStart, quality, onQuality, best, muted, onMute, softFx = false, onSoftFx = () => false, onSettings = () => {}, streak = 0, daily = null }) {
-    const touch = this.isTouch;
+  showTitle({ onStart, onSettings, onShop, bestTime, bestRank, streak = 0, missions, tokens, trailName }) {
+    const completed = missions.filter((mission) => mission.done).length;
     this.title.innerHTML = `
-      <div class="logo"><img class="logo-mark" src="./art/mark.png" alt="" draggable="false" /><span class="l1">TANUKI <span class="acc">RUSH</span></span><span class="l2">MOBILE EDITION · MADE IN TZ</span></div>
-      <div class="stage-card">STAGE 1 — HILLSIDE CITY</div>
-      <div class="press">${touch ? 'TAP TO START' : 'PRESS ENTER / CLICK'}</div>
-      <div class="meta-row">
-        ${streak > 0 ? `<span class="chip streak">🔥 ${streak}-DAY STREAK</span>` : ''}
-        ${daily ? `<span class="chip daily ${daily.done ? 'done' : ''}">${daily.done ? '✓ DAILY DONE' : '◆ DAILY'} · ${daily.label}</span>` : ''}
+      <div class="title-shell">
+        <div class="title-main">
+          <div class="edition-tag"><span class="edition-dot"></span> MOBILE EDITION <span class="edition-divider">/</span> MADE IN TANZANIA</div>
+          <div class="title-logo" aria-label="Tanuki Rush"><span>TANUKI</span><strong>RUSH<span class="logo-arrow">↗</span></strong></div>
+          <p class="title-description">One city. One speedy tanuki.<br><b>How fast can you make it down?</b></p>
+          <div class="title-actions">
+            <button class="ride-btn" data-start="1"><span>LET’S RIDE</span><span class="ride-arrow">↗</span></button>
+            <button class="garage-btn" data-shop="1"><span class="garage-icon">✦</span> TRAILS <span class="garage-count">${tokens} ◈</span></button>
+          </div>
+          <div class="title-stats">
+            <div><span>BEST TIME</span><strong>${bestTime || '—'}</strong></div>
+            <div><span>BEST RANK</span><strong>${bestRank || '—'}</strong></div>
+            <div><span>STREAK</span><strong>${streak > 0 ? `${streak} DAY${streak === 1 ? '' : 'S'}` : '—'}</strong></div>
+          </div>
+        </div>
+        <aside class="mission-card" aria-label="Daily missions">
+          <div class="mission-topline"><span>YOUR NEXT CHALLENGE</span><span class="mission-spark">✳</span></div>
+          <div class="mission-heading"><div><h2>DAILY RUNS<span>.</span></h2><p>Three fresh goals, every day.</p></div><b>${completed}<small>/3</small></b></div>
+          <div class="mission-list">${missions.map((mission, i) => `
+            <div class="mission-item ${mission.done ? 'complete' : ''}">
+              <span class="mission-number">${mission.done ? '✓' : `0${i + 1}`}</span>
+              <span class="mission-label">${mission.label}</span>
+              <span class="mission-reward">${mission.done ? 'DONE' : `+${mission.reward} ◈`}</span>
+            </div>`).join('')}</div>
+          <div class="mission-foot"><span>✦ PLAY OFFLINE</span><span>${trailName.toUpperCase()} EQUIPPED</span></div>
+        </aside>
       </div>
-      <div class="controls">
-        ${touch
-          ? `<span class="k">DRAG LEFT</span><span>Steer left / right</span><span class="k">JUMP</span><span>Jump · again in air: homing attack</span><span class="k">BOOST</span><span>Boost (uses the gauge)</span><span class="k">II</span><span>Pause</span>`
-          : `<span class="k">← → / A D</span><span>Steer left / right (running is automatic)</span>
-        <span class="k">SPACE / J</span><span>Jump · again in air: homing attack</span>
-        <span class="k">SHIFT / K</span><span>Boost (collect leaves to fill the gauge)</span>
-        <span class="k">↓ / S</span><span>Brake</span>
-        <span class="k">After a ramp ↑↓←→</span><span>Trick!</span>
-        <span class="k">ESC / P</span><span>Pause</span>`}
-      </div>
-      <div class="opts">
-        <button class="btn" data-settings="1">⚙ SETTINGS</button>
-        <button class="btn" data-credits="1">★ CREDITS</button>
-        <span style="align-self:center">QUALITY</span>
-        ${['low', 'mid', 'high'].map((q) => `<button class="btn ${q === quality ? 'sel' : ''}" data-q="${q}">${{ low: 'LOW', mid: 'MID', high: 'HIGH' }[q]}</button>`).join('')}
-        <button class="btn" data-mute="1">${muted ? '🔇 SOUND OFF' : '🔊 SOUND ON'}</button>
-        <button class="btn" data-softfx="1" title="Softens motion blur and speed lines">${softFx ? '🌙 REDUCED FX' : '⚡ FULL FX'}</button>
-      </div>
-      ${best ? `<div class="stage-card">BEST  ${best}</div>` : ''}
-      ${touch ? '<div class="rotate-hint">📱 Best in landscape</div>' : ''}
-      <div class="credit">© 2026 Mwijay · game by tanuu5 · MIT</div>`;
-    this.title.style.backgroundImage =
-      "linear-gradient(rgba(6,14,40,.55), rgba(6,14,40,.93) 78%), url('./art/title-bg.png')";
+      <div class="title-footer">
+        <span class="course-label"><i></i> STAGE 01 <b>HILLSIDE CITY</b></span>
+        <div class="title-links"><button data-help="1">HOW TO PLAY</button><button data-settings="1">SETTINGS</button><button data-credits="1">CREDITS</button></div>
+        <span class="title-credit">ORIGINAL GAME BY TANUU5 · MIT</span>
+      </div>`;
+    this.title.style.backgroundImage = "linear-gradient(95deg, rgba(5,12,31,.97) 0%, rgba(5,12,31,.84) 47%, rgba(5,12,31,.48) 100%), url('./og-image.jpg')";
     this.title.classList.remove('hidden');
     this.title.onclick = (e) => {
-      const q = e.target.closest('[data-q]');
-      if (q) { e.stopPropagation(); onQuality(q.dataset.q); this.title.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('sel', b === q)); return; }
-      const m = e.target.closest('[data-mute]');
-      if (m) { e.stopPropagation(); const now = onMute(); m.textContent = now ? '🔇 SOUND OFF' : '🔊 SOUND ON'; return; }
-      const f = e.target.closest('[data-softfx]');
-      if (f) { e.stopPropagation(); const now = onSoftFx(); f.textContent = now ? '🌙 REDUCED FX' : '⚡ FULL FX'; return; }
-      if (e.target.closest('[data-settings]')) { e.stopPropagation(); onSettings(); return; }
-      if (e.target.closest('[data-credits]')) { e.stopPropagation(); this.showCredits(); return; }
-      onStart();
+      if (e.target.closest('[data-start]')) { onStart(); return; }
+      if (e.target.closest('[data-shop]')) { onShop(); return; }
+      if (e.target.closest('[data-settings]')) { onSettings(); return; }
+      if (e.target.closest('[data-credits]')) { this.showCredits(); return; }
+      if (e.target.closest('[data-help]')) this.showIntro();
     };
   }
 
   hideTitle() { this.title.classList.add('hidden'); this.title.onclick = null; }
 
+  get hasOpenOverlay() {
+    return [this.settings, this.credits, this.intro, this.shop].some((screen) => !screen.classList.contains('hidden'));
+  }
+
+  // --------------------------------------------------------------- trail shop
+  showShop({ getState, onSelect, onClose }) {
+    let notice = '';
+    const render = () => {
+      const { tokens, trails, owned, equipped } = getState();
+      this.shop.innerHTML = `
+        <div class="shop-inner">
+          <div class="shop-header"><div><div class="eyebrow">MAKE YOUR MARK</div><h2>THE TRAIL SHOP<span>.</span></h2>
+            <p>Earn leaf tokens from runs and daily goals. Trails change your boost colours, not your speed.</p></div>
+            <div class="shop-wallet"><small>YOUR TOKENS</small><strong>◈ ${tokens}</strong></div></div>
+          <div class="trail-grid">${trails.map((trail) => {
+            const isOwned = owned.includes(trail.id), isEquipped = equipped === trail.id;
+            return `<div class="trail-card ${isEquipped ? 'equipped' : ''}">
+              <div class="trail-art" style="--trail-color:${trail.swatch}"><span>✦</span><i></i><i></i><i></i></div>
+              <div class="trail-name">${trail.name}</div><div class="trail-desc">${trail.description}</div>
+              <button data-trail="${trail.id}" ${isEquipped ? 'disabled' : ''}>${isEquipped ? '✓ EQUIPPED' : isOwned ? 'EQUIP' : `UNLOCK · ${trail.price} ◈`}</button>
+            </div>`;
+          }).join('')}</div>
+          <div class="shop-bottom"><span class="shop-notice" role="status">${notice || 'Cosmetic only · no pay-to-win'}</span><button class="shop-back" data-shop-back="1">← BACK TO TITLE</button></div>
+        </div>`;
+    };
+    render();
+    this.shop.classList.remove('hidden');
+    this.shop.onclick = (e) => {
+      const choice = e.target.closest('[data-trail]');
+      if (choice) {
+        const result = onSelect(choice.dataset.trail);
+        notice = result.ok ? (result.purchased ? `${result.trail.name} unlocked and equipped!` : `${result.trail.name} equipped!`) : 'Not enough leaf tokens yet. Finish a run to earn more!';
+        render();
+        return;
+      }
+      if (e.target.closest('[data-shop-back]')) onClose();
+    };
+  }
+
+  hideShop() { this.shop.classList.add('hidden'); this.shop.onclick = null; }
+
   // ------------------------------------------------------------------ settings
   /** Modal settings panel. Purely a view: every change is applied by the caller. */
-  showSettings({ quality, onQuality, muted, onMute, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false }) {
+  showSettings({ quality, onQuality, muted, onMute, onResetAudio = async () => false, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false, reminders = null, onReminders = async () => false }) {
     const qLabel = { low: 'LOW', mid: 'MID', high: 'HIGH' };
     const sensLabel = (d) => (d <= 32 ? 'HIGH' : d >= 70 ? 'LOW' : 'MID');
     const sensStep = (dir) => {
-      const steps = [26, 50, 78];
+      const steps = [78, 50, 26];
       const i = steps.indexOf(this.steerDiv);
       const next = steps[Math.max(0, Math.min(steps.length - 1, (i === -1 ? 1 : i) + dir))];
       this.steerDiv = next;
@@ -238,25 +280,47 @@ export class HUD {
           <span class="set-ctl">${['low', 'mid', 'high'].map((q) => `<button class="btn ${q === quality ? 'sel' : ''}" data-q="${q}">${qLabel[q]}</button>`).join('')}</span></div>
         <div class="set-row"><span class="set-label">SOUND</span>
           <span class="set-ctl"><button class="btn" data-mute="1">${muted ? 'OFF' : 'ON'}</button></span></div>
+        <div class="set-row"><span class="set-label">RESTORE AUDIO<span class="set-hint">if sound stops</span></span>
+          <span class="set-ctl"><button class="btn" data-reset-audio="1" aria-live="polite">RESET</button></span></div>
         <div class="set-row"><span class="set-label">EFFECTS</span>
           <span class="set-ctl"><button class="btn" data-softfx="1">${softFx ? 'REDUCED' : 'FULL'}</button></span></div>
         <div class="set-row"><span class="set-label">STEER SENSITIVITY<span class="set-hint">touch only</span></span>
           <span class="set-ctl"><button class="btn" data-sens="-1">−</button><button class="btn" data-sensval="1">${sensLabel(this.steerDiv)}</button><button class="btn" data-sens="1">+</button></span></div>
         ${haptics === null ? '' : `<div class="set-row"><span class="set-label">HAPTICS<span class="set-hint">vibration</span></span>
           <span class="set-ctl"><button class="btn" data-haptics="1">${haptics ? 'ON' : 'OFF'}</button></span></div>`}
+        ${reminders === null ? '' : `<div class="set-row"><span class="set-label">REMINDERS<span class="set-hint">optional notifications</span></span>
+          <span class="set-ctl"><button class="btn" data-reminders="1">${reminders ? 'ON' : 'OFF'}</button></span></div>`}
       </div>
       <button class="btn big" data-close="1">BACK</button>
       <div class="credit">© 2026 Mwijay · game by tanuu5 · MIT</div>`;
     this.settings.classList.remove('hidden');
-    this.settings.onclick = (e) => {
+    this.settings.onclick = async (e) => {
       const q = e.target.closest('[data-q]');
       if (q) { e.stopPropagation(); onQuality(q.dataset.q); this.settings.querySelectorAll('[data-q]').forEach((b) => b.classList.toggle('sel', b === q)); return; }
       const m = e.target.closest('[data-mute]');
       if (m) { e.stopPropagation(); m.textContent = onMute() ? 'OFF' : 'ON'; return; }
+      const resetAudio = e.target.closest('[data-reset-audio]');
+      if (resetAudio) {
+        e.stopPropagation();
+        resetAudio.disabled = true;
+        resetAudio.textContent = 'RESETTING…';
+        try { resetAudio.textContent = await onResetAudio() ? 'DONE' : 'TRY AGAIN'; }
+        catch (_) { resetAudio.textContent = 'TRY AGAIN'; }
+        finally { resetAudio.disabled = false; }
+        return;
+      }
       const f = e.target.closest('[data-softfx]');
       if (f) { e.stopPropagation(); f.textContent = onSoftFx() ? 'REDUCED' : 'FULL'; return; }
       const h = e.target.closest('[data-haptics]');
       if (h) { e.stopPropagation(); h.textContent = onHaptics() ? 'ON' : 'OFF'; return; }
+      const remindersButton = e.target.closest('[data-reminders]');
+      if (remindersButton) {
+        e.stopPropagation();
+        remindersButton.disabled = true;
+        try { remindersButton.textContent = await onReminders() ? 'ON' : 'OFF'; }
+        finally { remindersButton.disabled = false; }
+        return;
+      }
       const s = e.target.closest('[data-sens]');
       if (s) {
         e.stopPropagation();
@@ -306,10 +370,11 @@ export class HUD {
   // ---------------------------------------------------------------- onboarding
   /** First-run coaching. Shown once, then never again unless storage is cleared. */
   showIntro(onDone) {
+    const touch = this.isTouch;
     const steps = [
-      { n: '01', t: 'STEER', d: 'Drag anywhere on the left half of the screen. The stick follows your thumb.' },
-      { n: '02', t: 'JUMP', d: 'Tap JUMP. Tap it again in mid-air to lock on and homing-attack an enemy.' },
-      { n: '03', t: 'BOOST', d: 'Hold BOOST to spend your leaf gauge. You smash through enemies and cars.' },
+      { n: '01', t: 'STEER', d: touch ? 'Drag on the left half of the screen. The stick follows your thumb.' : 'Use the arrow keys or A and D to steer. Running is automatic.' },
+      { n: '02', t: 'JUMP', d: touch ? 'Tap JUMP. Tap again in mid-air for a homing attack.' : 'Press SPACE or J to jump. Press again in mid-air for a homing attack.' },
+      { n: '03', t: 'BOOST', d: touch ? 'Hold BOOST to spend your gauge and smash through obstacles.' : 'Hold SHIFT or K to boost. Collect leaves to refill the gauge.' },
     ];
     this.intro.innerHTML = `
       <div class="set-title">HOW TO PLAY</div>
@@ -331,37 +396,38 @@ export class HUD {
 
   // ------------------------------------------------------------------ results
   showResults(r, { onRetry, onTitle }) {
-    const rows = [
-      ['TIME', formatTime(r.time) + (r.newRecord ? '<span class="newrec">NEW RECORD!</span>' : '')],
-      ['LEAVES', `${r.leaves}`],
-      ['ENEMIES', `${r.enemies}`],
-      ['SCORE', `${r.score}`],
-      ['TIME BONUS', `${r.timeBonus}`],
-      ['LEAF BONUS', `${r.leafBonus}`],
-      ['TOTAL', `<span class="total">${r.total}</span>`],
-    ];
+    const newlyDone = new Set(r.award?.newlyCompleted.map((m) => m.id) || []);
+    const missions = r.award?.missions || [];
     this.results.innerHTML = `
-      <div class="res-title">COURSE CLEAR!</div>
-      <div class="res-table">${rows.map(([k, v], i) => `<div class="k" style="animation-delay:${0.25 + i * 0.18}s">${k}</div><div class="v" style="animation-delay:${0.25 + i * 0.18}s">${v}</div>`).join('')}</div>
-      ${r.tier && r.tier.next ? `<div class="next-tier">
-        <div class="nt-head"><span>NEXT RANK ${r.tier.next}</span><span>${r.tier.need.toLocaleString()} pts to go</span></div>
-        <div class="nt-bar"><i style="width:${Math.round(r.tier.progress * 100)}%"></i></div>
-      </div>` : (r.tier ? '<div class="next-tier maxed">★ MAX RANK — you topped the chart</div>' : '')}
-      ${r.goal ? `<div class="daily-banner ${r.goal.done ? 'done' : ''}">${r.goal.justDone ? '🎉 DAILY GOAL COMPLETE' : r.goal.done ? '✓ DAILY GOAL' : '◆ DAILY GOAL'} · ${r.goal.label}</div>` : ''}
-      ${r.streak > 0 ? `<div class="streak-line">🔥 ${r.streak}-day streak — come back tomorrow to keep it alive</div>` : ''}
-      <div class="res-actions">
-        <button class="btn big" data-a="retry">RETRY</button>
-        <button class="btn big" data-a="title">TITLE</button>
-      </div>
-      ${this.isTouch ? '' : '<div class="stage-card">ENTER / R retry · ESC title</div>'}
-      <div class="rank"><div class="lbl">RANK</div><div class="letter rank-${r.rank}">${r.rank}</div></div>`;
+      <div class="results-layout">
+        <section class="result-main">
+          <div class="eyebrow">STAGE 01 / HILLSIDE CITY</div>
+          <h2>COURSE CLEAR<span>!</span></h2>
+          <p class="result-subtitle">Nice run. Ready to beat it?</p>
+          <div class="result-stats">
+            <div><span>TIME</span><strong>${formatTime(r.time)}</strong>${r.newRecord ? '<em>NEW BEST</em>' : ''}</div>
+            <div><span>TOTAL SCORE</span><strong>${r.total.toLocaleString()}</strong></div>
+            <div><span>LEAVES COLLECTED</span><strong>${r.collected}</strong></div>
+          </div>
+          ${r.tier.next ? `<div class="result-progress"><div><span>NEXT UP: RANK ${r.tier.next}</span><span>${r.tier.need.toLocaleString()} PTS TO GO</span></div><i><b style="width:${Math.round(r.tier.progress * 100)}%"></b></i></div>` : '<div class="result-progress maxed">★ MAX RANK — AMAZING RUN</div>'}
+          <div class="result-actions"><button class="ride-btn" data-a="retry">RUN IT BACK <span>↗</span></button><button class="garage-btn" data-a="title">TITLE</button></div>
+        </section>
+        <aside class="result-side">
+          <div class="result-grade"><div><span>YOUR RANK</span><strong class="rank-${r.rank}">${r.rank}</strong></div>
+            <div class="result-earned"><span>${r.award ? 'LEAF TOKENS EARNED' : 'PRACTICE RUN'}</span><strong>${r.award ? `+${r.award.total} ◈` : 'NO REWARDS'}</strong><small>${r.award ? `${r.award.base} from your run · ${r.award.bonus} from goals` : 'Finish a normal run to earn tokens.'}</small></div>
+          </div>
+          ${r.award ? `<div class="result-missions"><div class="result-mission-title">DAILY GOALS <span>${missions.filter((m) => m.done).length}/3 COMPLETE</span></div>
+            ${missions.map((m) => `<div class="result-mission ${m.done ? 'complete' : ''}"><span>${m.done ? '✓' : '○'}</span><b>${m.label}</b><small>${newlyDone.has(m.id) ? `+${m.reward} ◈` : m.done ? 'DONE' : `+${m.reward} ◈`}</small></div>`).join('')}
+          </div>` : ''}
+          ${r.streak > 0 ? `<div class="result-streak">✦ ${r.streak}-DAY STREAK</div>` : ''}
+        </aside>
+      </div>`;
     this.results.classList.remove('hidden');
     this.results.onclick = (e) => {
       const a = e.target.closest('[data-a]');
       if (!a) return;
       if (a.dataset.a === 'retry') onRetry(); else onTitle();
     };
-    setTimeout(() => this.results.querySelector('.letter')?.classList.add('show'), 1700);
   }
 
   hideResults() { this.results.classList.add('hidden'); this.results.onclick = null; }
@@ -390,7 +456,7 @@ export class HUD {
 
   _buildTouch() {
     const t = el('div', 'touch');
-    t.innerHTML = `<div class="tpad"><div class="tstick"><div class="knob"></div></div></div>
+    t.innerHTML = `<div class="tpad"><div class="steer-guide" aria-hidden="true"><span>↔</span> DRAG TO STEER</div><div class="tstick"><div class="knob"></div></div></div>
       <div class="tbtn jump" data-b="jump">JUMP</div><div class="tbtn boost" data-b="boost">BOOST</div>
       <div class="tbtn brake" data-b="brake">BRAKE</div><div class="tbtn pausebtn" data-b="pause">II</div>`;
     this.root.appendChild(t);
@@ -398,8 +464,19 @@ export class HUD {
     const inp = this.input;
     const pad = t.querySelector('.tpad'), stick = t.querySelector('.tstick'), knob = t.querySelector('.knob');
     let sid = null, sx = 0, sy = 0;
+    const resetSteer = () => {
+      const active = sid; sid = null;
+      if (active !== null) {
+        try { if (pad.hasPointerCapture(active)) pad.releasePointerCapture(active); } catch (_) { /* best-effort */ }
+      }
+      inp.touch.steer = 0;
+      stick.style.display = 'none';
+    };
+    this._resetSteer = resetSteer;
     pad.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      // Keep the first steering finger if another touches the left side.
+      if (sid !== null) return;
       sid = e.pointerId; sx = e.clientX; sy = e.clientY;
       try { pad.setPointerCapture(e.pointerId); } catch (_) { /* capture is best-effort */ }
       const r = pad.getBoundingClientRect();
@@ -413,9 +490,10 @@ export class HUD {
       inp.touch.steer = Math.abs(dx) < 6 ? 0 : dx / this.steerDiv;
       knob.style.transform = `translateX(${dx}px)`;
     });
-    const end = (e) => { if (e.pointerId !== sid) return; sid = null; inp.touch.steer = 0; stick.style.display = 'none'; };
+    const end = (e) => { if (e.pointerId === sid) resetSteer(); };
     pad.addEventListener('pointerup', end);
     pad.addEventListener('pointercancel', end);
+    pad.addEventListener('lostpointercapture', end);
     t.querySelectorAll('.tbtn').forEach((b) => {
       const name = b.dataset.b;
       b.addEventListener('pointerdown', (e) => {
@@ -446,7 +524,8 @@ export class HUD {
     if (!t) {
       // Never leave a control stuck down when the layer disappears.
       const inp = this.input;
-      inp.touch.steer = 0; inp.touch.jump = false; inp.touch.boost = false; inp.touch.brake = false;
+      this._resetSteer();
+      inp.touch.jump = false; inp.touch.boost = false; inp.touch.brake = false;
       this.touchEl.querySelectorAll('.tbtn.down').forEach((b) => b.classList.remove('down'));
     }
   }

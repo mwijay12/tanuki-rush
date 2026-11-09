@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import 'app_theme.dart';
+import 'game_webview_settings.dart';
 import 'notification_service.dart';
 
 /// Hosts the game. The WebView only ever talks to the loopback server this app
@@ -42,8 +43,21 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Immersive mode is dropped by the system after a dialog, rotation, or
-    // app switch; re-apply it when we come back to the foreground.
-    if (state == AppLifecycleState.resumed) _enterImmersiveMode();
+    // app switch; re-apply it and let the game check its Web Audio context.
+    if (state == AppLifecycleState.resumed) {
+      _enterImmersiveMode();
+      unawaited(_notifyGameResumed());
+    }
+  }
+
+  Future<void> _notifyGameResumed() async {
+    try {
+      await _controller?.evaluateJavascript(
+        source: "window.dispatchEvent(new Event('tanuki:app-resumed'));",
+      );
+    } catch (error) {
+      debugPrint('[game] audio resume notification failed: $error');
+    }
   }
 
   void _enterImmersiveMode() {
@@ -130,12 +144,17 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
     controller.addJavaScriptHandler(
       handlerName: 'scheduleStreakReminder',
-      callback: (args) {
+      callback: (args) async {
         final map = args.isNotEmpty && args.first is Map ? args.first as Map : const {};
         final streak = (map['streak'] as num?)?.toInt() ?? 0;
-        NotificationService.instance.scheduleStreakReminder(streak);
+        await NotificationService.instance.scheduleStreakReminder(streak);
         return null;
       },
+    );
+
+    controller.addJavaScriptHandler(
+      handlerName: 'cancelStreakReminder',
+      callback: (args) => NotificationService.instance.cancelStreakReminder(),
     );
   }
 
@@ -184,8 +203,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 },
                 shouldOverrideUrlLoading: (_, action) async {
                   final target = action.request.url;
-                  // Keep the WebView pinned to our own loopback origin.
-                  if (target == null || target.host != widget.gameUri.host) {
+                  // The origin includes scheme and port, not just the host.
+                  if (target == null ||
+                      target.scheme != widget.gameUri.scheme ||
+                      target.host != widget.gameUri.host ||
+                      target.port != widget.gameUri.port) {
                     return NavigationActionPolicy.CANCEL;
                   }
                   return NavigationActionPolicy.ALLOW;
@@ -205,34 +227,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     );
   }
 
-  static final InAppWebViewSettings _settings = InAppWebViewSettings(
-    javaScriptEnabled: true,
-    // Best times and settings are persisted by the game in localStorage.
-    domStorageEnabled: true,
-    databaseEnabled: true,
-    // The audio engine starts on user gesture, but allowing autoplay avoids a
-    // silent first run on some WebView builds.
-    mediaPlaybackRequiresUserGesture: false,
-    transparentBackground: false,
-    useHybridComposition: true,
-    hardwareAcceleration: true,
-    // A runner game must never rubber-band or pinch-zoom mid-run.
-    disableVerticalScroll: true,
-    disableHorizontalScroll: true,
-    supportZoom: false,
-    builtInZoomControls: false,
-    displayZoomControls: false,
-    verticalScrollBarEnabled: false,
-    horizontalScrollBarEnabled: false,
-    disableContextMenu: true,
-    supportMultipleWindows: false,
-    // Everything is served over loopback, so file/content access stays closed.
-    allowFileAccess: false,
-    allowContentAccess: false,
-    cacheEnabled: true,
-    useShouldOverrideUrlLoading: true,
-    isInspectable: kDebugMode,
-  );
+  static final InAppWebViewSettings _settings = createGameWebViewSettings();
 }
 
 class _LoadingOverlay extends StatelessWidget {

@@ -1,163 +1,81 @@
-# Tanuki Rush — Android
+# Tanuki Rush — Mobile Edition 🍃
 
-Native Android shell that plays **TANUKI RUSH** (a Three.js downhill runner) as an
-installed app: no browser chrome, no URL bar, no network, works in airplane mode.
+A fast, offline 3D downhill runner for the browser and Android. Ride the leaf board through Hillside City, collect leaves, dodge traffic, boost and try to beat your best time.
 
-> **Kwa Kiswahili:** hii ni app ya Android inayobeba mchezo wa TANUKI RUSH
-> (ulioandikwa na tanuu5 kwa Three.js) na kuufanya uchezeke kama app ya kawaida —
-> offline, landscape, fullscreen, bila browser. Kazi yangu ni shell ya Flutter,
-> server ndogo ya kuhamisha game, na mipangilio ya Android. Mchezo wenyewe si wangu.
+The original **TANUKI RUSH** game is by [tanuu5](https://github.com/tanuu5/tanuki-rush), MIT © 2026. This project adds the Flutter Android shell, English mobile UI, offline progression and build pipeline. See [NOTICE.md](NOTICE.md) and [LICENSE-tanuki-rush](LICENSE-tanuki-rush).
 
----
+## Play
 
-## What is mine, what is not
+- **Start a run:** steer left/right, jump (jump again in the air to home in on an enemy), and boost. On touch screens, put your thumb anywhere on the left half, **hold and drag** left or right, and release to center; use the buttons on the right with your other thumb. Adjust touch steering sensitivity in Settings. On a keyboard use arrows/A–D, Space/J and Shift/K.
+- **Keep improving:** beat your local best time and aim for the next rank.
+- **Daily runs:** three goals rotate with your device's local date. Finish a run to earn leaf tokens; complete goals for a bonus. Each goal pays once per day.
+- **Trail shop:** unlock boost particle colours with tokens earned in-game. Trails are cosmetic and do not affect speed. No purchases or account are needed.
+- **Reminders:** optional on Android, off by default; enable them explicitly in Settings.
 
-Being explicit about this matters more than the code.
+Progress is stored **on this device only**. Clearing browser/app data or uninstalling the app removes it. No online leaderboard or cloud backup is connected yet.
 
-| | Author |
-| --- | --- |
-| The game: 3D course, tanuki model, city, physics, HUD, music and SFX | **たぬ / [tanuu5](https://github.com/tanuu5/tanuki-rush)** — MIT |
-| three.js renderer | three.js authors — MIT |
-| Fonts (Exo 2, M PLUS Rounded 1c) | SIL Open Font License 1.1 |
-| **Flutter app, loopback asset server, Android config, offline font bundling, build pipeline** | this project |
+### Run the browser version locally
 
-The game is bundled unmodified apart from one change: its Google Fonts `<link>` is
-replaced with self-hosted subsets so it renders offline. See [`NOTICE.md`](NOTICE.md).
-
-## Why there is an HTTP server in a single-player offline game
-
-The obvious approach — load `file:///android_asset/.../index.html` — does not work
-here, and the reason is specific:
-
-1. Vite emits `<script type="module" crossorigin>`, and Chromium refuses to load
-   module scripts from an opaque `file://` origin.
-2. The build code-splits into three chunks (`index`, `TanukiModel`, `AudioEngine`),
-   so the module graph cannot simply be inlined away.
-3. The game persists best times and settings in `localStorage`, which is unreliable
-   on `file://` but normal on a real origin.
-
-Options considered:
-
-| Approach | Verdict |
-| --- | --- |
-| `file://` + `allowUniversalAccessFromFileURLs` | Rejected — deprecated in modern Chromium, unreliable across WebView versions |
-| Rebuild as a single IIFE bundle | Rejected — fights the bundler config and still loses `localStorage` |
-| `WebViewAssetLoader` (https scheme) | Works, but needs a platform channel per request |
-| **Loopback `HttpServer` on `127.0.0.1`** | **Chosen** — real origin, ES modules and `localStorage` behave normally, ~150 lines of Dart, testable without a device |
-
-The server binds to port `0` (OS-assigned) so two instances never collide, serves
-only keys that exist in the bundled asset index, and rejects `..` segments.
-Cleartext HTTP is permitted **only** for `127.0.0.1` via
-`network_security_config.xml`; every other host stays blocked.
-
-## Project layout
-
-```
-mobile/
-  lib/
-    main.dart               orientation lock, immersive mode, app gate
-    game_screen.dart        WebView host, back-button policy, error surface
-    web_asset_server.dart   loopback static server (pure Dart, unit-testable)
-    game_bootstrap.dart     wires rootBundle into the server
-    app_theme.dart          colours matching the game UI
-  tool/
-    verify_asset_server.dart   17 standalone checks, no device needed
-  assets/web/              the compiled game (generated — see below)
-  android/                 manifest, network security config, launch theme
-tools/
-  build_web_assets.py      rebuild the game + self-host fonts + index assets
-  make_icons.py            rasterise the launcher icon (legacy + adaptive layers)
-  fetch_llvm_strip.py      pull only llvm-strip out of the NDK zip (container builds)
-  setup_toolchain.sh       install JDK/Flutter/Android SDK in a bare container
-tanuki-rush/               upstream game source (build input)
-```
-
-## Build
-
-Requires Flutter (Dart 3.13+) and an Android SDK.
+Requires Node.js 22+.
 
 ```bash
+cd tanuki-rush
+npm ci
+npm test
+npm run dev -- --host 0.0.0.0
+```
+
+Open the URL printed by Vite. Rotate a phone to landscape. The game needs WebGL2; performance depends on the device and browser. Settings includes a lower graphics quality option.
+
+## Android APK
+
+Download the newest Android **pre-release** from the [Releases page](https://github.com/mwijay12/tanuki-rush/releases). Preview 1.0.1 addresses an Android WebView setting that blocked drag steering. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
+
+**Preview signing is not production signing.** The current build uses an Android debug key. CI can generate a different key for each build, so updating an installed preview may require uninstalling it first, which deletes local progress. It is not suitable for a Play Store upload. Set up a securely backed-up release keystore and test on real phones before production.
+
+### Build from source
+
+Requires Node 22, Python 3, Java 17, Flutter 3.47.9 and Android SDK components for platforms 34 and 36, build-tools 36.0.0 and NDK 27.3.13750724.
+
+```bash
+# From the repository root, after editing the game:
+python3 tools/build_web_assets.py
+
 cd mobile
 flutter pub get
-flutter build apk --release --target-platform android-arm,android-arm64
-# → build/app/outputs/flutter-apk/app-release.apk   (29.9 MB)
+flutter analyze --no-pub
+flutter test --no-pub
+dart run tool/verify_asset_server.dart
+flutter build apk --release --no-pub --target-platform android-arm,android-arm64
+# mobile/build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Both ARM ABIs are built; x86 is skipped because it only matters for emulators.
-Install on a device with `adb install -r build/app/outputs/flutter-apk/app-release.apk`.
+The asset script installs the locked npm dependencies and builds the game. Fonts and license notices are already in `tanuki-rush/public/`; it does not fetch Google Fonts. Keep the generated `mobile/assets/web/` in sync with source. Both ARM ABIs are included; x86 emulators need a different build target.
 
-Verified on the built artefact:
+### CI and preview releases
 
-| Property | Value |
-| --- | --- |
-| Size | 29.9 MB |
-| ABIs | `arm64-v8a`, `armeabi-v7a` |
-| `applicationId` | `com.tanukirush.tanuki_rush` |
-| Label | Tanuki Rush |
-| Permissions | `INTERNET` only (loopback socket) |
-| Orientation | `sensorLandscape` |
-| `isGame` | `true` |
-| Signing | Android debug key — see limitations |
+The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game, rebuilds and checks the offline assets, runs touch simulations in Chrome, checks the Flutter WebView settings and asset server, and builds an APK. To run the browser touch checks locally after rebuilding the assets, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`. These checks do not replace testing on an actual Android WebView/device. A normal branch push produces a downloadable Actions artifact. A push commit containing `[release-preview]` additionally publishes a uniquely tagged **pre-release** with the APK and its SHA-256 checksum.
 
-### Build environment notes
+### Why the app runs a loopback server
 
-Three non-default settings exist because of this specific stack, not by accident:
+Chromium WebView cannot reliably load the Vite ES-module graph and `localStorage` from `file://`. The Flutter shell serves an allowlisted copy of the game on `http://127.0.0.1:43853/`; it does not need an internet connection to play. The **fixed port is intentional**: storage is keyed to the whole origin, including the port. If that port is occupied, startup fails with a retry screen rather than silently switching origins and losing sight of the save. WebView navigation is limited to this exact origin.
 
-| Setting | Why |
-| --- | --- |
-| AGP pinned to 8.13.0 (template ships 9.1.0) | `flutter_inappwebview_android` 1.1.3 still calls `getDefaultProguardFile("proguard-android.txt")`, which AGP 9 rejects at configuration time |
-| `org.gradle.jvmargs=-Xmx1536m` | The Flutter template asks for `-Xmx8G`; on a 4 GB container Gradle's daemon gets OOM-killed with a misleading "daemon disappeared" error |
-| `ndkVersion` pinned to 27.0.12077973 | AGP resolves an NDK even with no native code; naming one version keeps the build reproducible instead of following AGP's default |
+Older development builds used random ports, so their old per-port saves cannot automatically be recovered by this build. Changing the fixed port later will also strand existing saves. The in-app server and origin behavior have standalone Dart checks; persistence on a physical device still needs verification.
 
-A normal machine with Android Studio installed resolves all of this by itself. Inside
-a 4 GB container the NDK cannot be unpacked (~1.9 GB), so `tools/fetch_llvm_strip.py`
-pulls just `llvm-strip` (5.8 MB) out of the NDK zip via HTTP range requests — that
-single binary is the only NDK component a release build needs, and without it
-`libflutter.so` ships unstripped at 165 MB instead of 11.7 MB.
+## Database recommendation
 
-The first one is worth knowing about: if `flutter_inappwebview` publishes an AGP 9
-compatible release, the pin can be dropped.
+For **leaderboards and cross-device sync**, start with **Supabase**: Postgres makes ranking queries natural, and its authentication, API and row-level security are in one service. Firebase is a good alternative if the team prefers its mobile SDKs and document model. Neon is a good Postgres host, but usually needs separate auth and API components, so it is less turnkey for this project.
 
-### Rebuilding the bundled game
+The current game is intentionally **offline-first** and no Supabase project is connected. When online features are agreed on, create a project, use anonymous authentication without a sign-up wall, design public-safe leaderboard views and row-level policies, and add opt-in sync with a privacy policy. Client-reported scores can be forged; validate/rate-limit submissions on a trusted backend before treating rankings as competitive. Never put a service-role key in the app or repository. Pricing and free-tier limits can change, so check them before launch. See [docs/DATABASE.md](docs/DATABASE.md).
 
-If you change the game source, regenerate the assets rather than editing
-`mobile/assets/web/` by hand:
+## Project map
 
-```bash
-python3 tools/build_web_assets.py
-```
-
-That runs the Vite build, copies `dist/`, downloads and rewrites the font CSS to
-local files, and rewrites `asset_index.json`.
-
-## Verification
-
-```bash
-cd mobile && dart tool/verify_asset_server.dart
-```
-
-Covers MIME types (a module script served as `text/plain` silently fails), the
-`/` → `index.html` fallback, `HEAD`, method rejection, unknown assets, path
-traversal, and that a second instance binds a different port. `flutter analyze`
-runs clean.
-
-## Known limitations
-
-- **No wake lock** — the screen can dim during a run. `wakelock_plus` is the fix.
-- **WebView variance** — WebGL performance depends on the device's WebView build.
-  High-end phones are fine; very old budget devices may drop frames. The game
-  already ships a low/medium/high quality switch on its title screen.
-- **Release signing** — the release build is signed with the debug key so it can be
-  installed locally. A Play Store upload needs a real keystore.
-- **Android only.** iOS would need a Mac, an Apple Developer account, and a WKWebView
-  host; the Dart code is portable but untested there.
-- **No x86 build.** Emulators on Intel hosts need `--target-platform android-x64`.
-- **Not yet run on a physical device.** Everything above was verified by static
-  analysis, the asset-server checks, and inspecting the built APK's contents and
-  manifest — not by playing it on hardware.
+- `tanuki-rush/` — Three.js game source, UI and offline progression tests.
+- `mobile/` — Flutter Android shell, bundled web assets and asset-server checks.
+- `tools/build_web_assets.py` — reproducible web bundle and license checks.
+- `.github/workflows/android.yml` — APK artifact and opt-in preview release.
+- `docs/MWONGOZO.md` — mwongozo kwa Kiswahili.
 
 ## License
 
-- This project: MIT — see [`LICENSE`](LICENSE).
-- Bundled game: MIT © 2026 たぬ — see [`LICENSE-tanuki-rush`](LICENSE-tanuki-rush).
-- Third-party components: see [`NOTICE.md`](NOTICE.md).
+Mobile edition: [MIT](LICENSE). Original game: [MIT © 2026 たぬ](LICENSE-tanuki-rush). Third-party notices and bundled font licenses: [NOTICE.md](NOTICE.md).

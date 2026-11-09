@@ -9,12 +9,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test test/*.test.js",
+    "test:touch": "node --test test/touch.e2e.mjs",
+    "test:audio": "node --test test/audio.e2e.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "playwright-core": "1.65.0",
     "vite": "^8.3.1"
   }
 }

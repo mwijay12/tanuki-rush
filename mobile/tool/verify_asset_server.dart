@@ -172,11 +172,42 @@ Future<void> main() async {
     await response.drain<void>();
     _check('POST is 405', response.statusCode == 405, '${response.statusCode}');
 
-    // A second server must get a different port so two app instances cannot clash.
+    // Port 0 remains available for isolated tests.
     final second = WebAssetServer(assetKeys: const [], loadAsset: (_) async => null);
     await second.start();
-    _check('second instance binds a different port', second.port != server.port);
+    final fixedPort = second.port;
+    _check('ephemeral instances bind different ports', fixedPort != server.port);
     await second.stop();
+
+    final stable = WebAssetServer(
+      listenPort: fixedPort,
+      assetKeys: const [],
+      loadAsset: (_) async => null,
+    );
+    await stable.start();
+    try {
+      final origin = stable.baseUri;
+      _check('requested stable port is used', stable.port == fixedPort);
+      final collision = WebAssetServer(
+        listenPort: fixedPort,
+        assetKeys: const [],
+        loadAsset: (_) async => null,
+      );
+      var failedClosed = false;
+      try {
+        await collision.start();
+      } on SocketException {
+        failedClosed = true;
+      } finally {
+        await collision.stop();
+      }
+      _check('occupied stable port does not silently fall back', failedClosed);
+      await stable.stop();
+      await stable.start();
+      _check('restart preserves the exact storage origin', stable.baseUri == origin);
+    } finally {
+      await stable.stop();
+    }
   } finally {
     client.close(force: true);
     await server.stop();
