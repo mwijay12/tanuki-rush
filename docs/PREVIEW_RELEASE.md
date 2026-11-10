@@ -2,6 +2,8 @@
 
 Try the offline downhill runner with daily missions, leaf-token rewards, unlockable cosmetic boost trails, ranks and local best times.
 
+**Preview 1.0.5:** Fixes the startup hang some 1.0.4 installs hit, where the app sat on an empty blue screen and never woke up. The app now always draws its first screen, every startup wait has a timeout with a visible error and retry, and every APK is boot-tested on an emulator before it can become a release. If 1.0.4 never opened on your phone, uninstall it and try this build, then report whether it opens plus your phone model and Android version.
+
 **Preview 1.0.4:** Android progress and settings now use a private offline SQLite database. Open **Settings → Device storage → Details** for native storage status. An in-place update from the same fixed-origin build and signing key migrates the old save once; startup stops rather than silently replacing data if the save cannot be opened. The Three.js game still runs in a WebView, and there is no Supabase connection or cloud sync.
 
 A crash or fall shows Game Over. Choose **REVIVE FREE** once per run to continue from the last checkpoint with your score and leaves, or **RETRY FROM START**. Collected leaves no longer absorb crashes; BOOST can still smash obstacles. No payment, ads or internet connection are needed for the revive.
