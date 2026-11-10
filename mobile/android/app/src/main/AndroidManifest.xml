@@ -25,7 +25,9 @@
             android:hardwareAccelerated="true"
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="false"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:windowDrawsSystemBarBackgrounds="true"
+            android:fitsSystemWindows="false">
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues
@@ -34,6 +36,10 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- Android 17 / Pixel 8 Pro cutout support -->
+            <meta-data
+              android:name="android:windowLayoutInDisplayCutoutMode"
+              android:value="shortEdges" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

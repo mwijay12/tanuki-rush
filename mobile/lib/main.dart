@@ -11,7 +11,7 @@ import 'web_asset_server.dart';
 
 /// How long the boot path waits for the OS before giving up with a visible
 /// error instead of hanging forever.
-const Duration _bootTimeout = Duration(seconds: 20);
+const Duration _bootTimeout = Duration(seconds: 60);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,14 +23,11 @@ Future<void> main() async {
     print('[tanuki] flutter-error: ${details.exception}');
   };
 
-  // Paint the first frame before touching any platform channel. Awaiting
-  // system UI before runApp() can wedge startup forever on some devices,
-  // leaving only the (empty, blue) Android window background with no message.
-  // The manifest already forces sensorLandscape at the activity level, so
-  // configuring orientation after runApp causes no visible rotation flash.
+  // Paint the first frame before touching any platform channel.
+  // Kuondoa _configureSystemUI() hapa ili kuzuia blocking kwenye startup.
   runZonedGuarded(() {
     runApp(const TanukiRushApp());
-    unawaited(_configureSystemUI());
+    // unawaited(_configureSystemUI()); // IMEONDOLEWA hapa
   }, (error, stack) {
     debugPrint('[tanuki] uncaught async error: $error\n$stack');
     // ignore: avoid_print — logcat breadcrumb; debugPrint is dropped in release.
@@ -39,8 +36,7 @@ Future<void> main() async {
 }
 
 /// A downhill runner is played in landscape; locking it also avoids a
-/// rebuild of the WebGL canvas during rotation mid-run. Never blocks startup:
-/// each call either applies within [_bootTimeout] or is logged and skipped.
+/// rebuild of the WebGL canvas during rotation mid-run.
 Future<void> _configureSystemUI() async {
   try {
     await SystemChrome.setPreferredOrientations(const [
@@ -93,9 +89,14 @@ class _GameGateState extends State<_GameGate> {
     // Grep-friendly boot marker for the CI emulator smoke test: if this line
     // never reaches logcat, the app hung before its first Flutter frame.
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      // ignore: avoid_print — debugPrint is dropped in release builds.
+      // ignore: avoid_print — logcat breadcrumb; debugPrint is dropped in release builds.
       print('[tanuki] first-frame-painted');
     });
+    
+    // Kuweka SystemUI hapa baada ya runApp lakini kabla ya _start()
+    // ili kuzuia blue status bar kwenye Android 17.
+    unawaited(_configureSystemUI());
+    
     _start();
   }
 
@@ -168,7 +169,7 @@ class _GameGateState extends State<_GameGate> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Imeshindikana kufungua mchezo.\nCould not start the game.',
+                'Imeshindikana kufungua mchezo.\\nCould not start the game.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
