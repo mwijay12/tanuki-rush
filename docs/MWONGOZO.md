@@ -4,15 +4,17 @@
 
 Fungua mchezo; unaweza kucheza simu ikiwa wima au mlalo. Weka dole gumba kwenye nusu ya kushoto ya skrini, **shikilia na buruta** kushoto au kulia kuendesha, kisha achia kusimamisha kugeuza. Tumia dole jingine: **JUMP** ni kuruka, **BOOST** ni kuongeza kasi, na **II** ni pause. Unaweza kubadili **STEER SENSITIVITY** kwenye Settings. Kusanya majani kujaza boost. Kwenye kompyuta tumia mishale/A–D, Space/J na Shift/K.
 
-Sauti ikinyamaza, preview 1.0.2 inajaribu kuirejesha yenyewe. Ikiwa bado haisikiki, bonyeza **Pause → Settings → Restore Audio → Reset**, kisha Resume. Hakikisha pia SOUND iko ON na sauti ya simu imewashwa.
+Ukigonga kizuizi au kuanguka, utaona **GAME OVER**. Chagua **REVIVE FREE** mara moja kwa kila run ili kuendelea kutoka checkpoint ya mwisho bila kupoteza score na majani, au **RETRY FROM START** kuanza upya. Revive ni bure kabisa; hakuna matangazo au internet inayohitajika. Majani hayakingi ajali tena, lakini BOOST bado inaweza kuvunja vizuizi.
 
-Kila siku kuna **daily missions tatu**. Maliza run upate leaf tokens, na maliza missions upate bonus. Fungua **TRAILS** kwenye mwanzo kutumia tokens kwa rangi tofauti za boost; haziongezi nguvu wala kasi. Rekodi, tokens na settings vinahifadhiwa kwenye kifaa tu, bila internet. Ukifuta app data au uninstall, progress inapotea.
+Preview 1.0.3 imepunguza na kurahisisha sauti ya BOOST na bado inajaribu kurejesha sauti ikinyamaza. Tatizo la Pixel halijaigwa kwenye majaribio ya browser, kwa hiyo suluhisho bado linahitaji kuthibitishwa kwenye simu. Ikiwa sauti bado haisikiki, bonyeza **Pause → Settings → Restore Audio → Reset**, kisha Resume. Hakikisha pia SOUND iko ON na sauti ya simu imewashwa.
+
+Kila siku kuna **daily missions tatu**. Maliza run upate leaf tokens, na maliza missions upate bonus. Fungua **TRAILS** kwenye mwanzo kutumia tokens kwa rangi tofauti za boost; haziongezi nguvu wala kasi. Rekodi, tokens na settings vinahifadhiwa offline kwenye SQLite ya simu. Fungua **Settings → Device storage → Details** kuona hali; ikiwa kuhifadhi kumeshindikana, utaona onyo na **Retry**. Hakuna sync au backup ya app; ukifuta app data au ku-uninstall unaweza kupoteza progress.
 
 ## APK ya majaribio
 
 Pakua APK ya **pre-release** mpya kwenye [GitHub Releases](https://github.com/mwijay12/tanuki-rush/releases). Preview 1.0.1 imebadilisha setting ya Android WebView iliyokuwa inazuia kuburuta kuendesha. Chagua `tanuki-rush-android-preview.apk`, ifungue na ruhusu “Install unknown apps” ikiwa Android itauliza. Android inaweza kuonya kwa sababu haitoki Play Store.
 
-**Muhimu:** APK ya preview inasainiwa kwa debug key, si key ya production. Builds tofauti zinaweza kuwa na signatures tofauti; unaweza kulazimika ku-uninstall ya zamani kabla ya kusakinisha mpya, na progress itapotea. Ijaribu kwenye simu halisi kabla ya kuisambaza kama release kamili. Play Store inahitaji signing key ya kudumu iliyohifadhiwa salama, pamoja na majaribio.
+**Muhimu:** APK ya preview inasainiwa kwa debug key, si key ya production. Builds tofauti zinaweza kuwa na signatures tofauti; Android inaweza kukataa update na kutaka u-uninstall ya zamani, jambo linaloweza kufuta progress. **Usi-uninstall ikiwa progress hiyo ni muhimu.** Kuhamisha progress ya zamani kwenda SQLite kunafanya kazi tu ukiweza ku-update bila kufuta data na ikiwa ilikuwa kwenye origin ile ile. Ijaribu kwenye simu halisi kabla ya kusambaza; Play Store inahitaji signing key ya kudumu iliyohifadhiwa salama.
 
 Kwa kujenga mwenyewe unahitaji Flutter 3.47.9, Java 17, Android SDK, Node 22 na Python 3:
 
@@ -30,7 +32,7 @@ APK inayotengenezwa inakuwa `mobile/build/app/outputs/flutter-apk/app-release.ap
 
 ## Database
 
-Kwa leaderboard na kusync baadaye, **Supabase** inapendekezwa: Postgres pamoja na authentication, API na security rules kwenye huduma moja. Kwa sasa mchezo unahifadhi offline tu; hakuna database iliyounganishwa. Maelezo na mambo ya usalama yako kwenye [DATABASE.md](DATABASE.md).
+Kwa sasa Android ina **database ya SQLite ndani ya simu**, na browser hutumia localStorage. Kwa leaderboard na kusync baadaye, **Supabase** inapendekezwa, lakini bado haijaunganishwa. Mchezo wa 3D bado unaendeshwa ndani ya WebView; si native 3D engine. Maelezo yako kwenye [DATABASE.md](DATABASE.md).
 
 ## Hati miliki
 

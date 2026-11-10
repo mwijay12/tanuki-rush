@@ -7,9 +7,8 @@ plugins {
 android {
     namespace = "com.tanukirush.tanuki_rush"
     compileSdk = flutter.compileSdkVersion
-    // Pinned deliberately. There is no native code in this project, but AGP
-    // still resolves an NDK at configuration time; naming one version keeps the
-    // build reproducible instead of following whatever AGP defaults to.
+    // Pinned deliberately: AGP resolves an NDK even though the SQLite bridge
+    // uses Android's built-in APIs. This keeps the build reproducible.
     ndkVersion = "27.3.13750724"
 
     compileOptions {
@@ -34,6 +33,10 @@ android {
         versionName = flutter.versionName
     }
 
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -51,6 +54,8 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }
 
 flutter {

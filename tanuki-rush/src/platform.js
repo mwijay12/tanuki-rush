@@ -5,6 +5,8 @@
 // callHandler(name, ...args); on the web it is undefined and we fall back to
 // the Web Vibration / Wake Lock APIs.
 
+import { gameStorage } from './storage.js';
+
 const bridge = () =>
   (typeof window !== 'undefined' && window.flutter_inappwebview) || null;
 
@@ -24,13 +26,20 @@ const VIBRATE = {
 let hapticsOn = true;
 export function setHaptics(on) {
   hapticsOn = !!on;
-  try { localStorage.setItem('tanuki_haptics', hapticsOn ? '1' : '0'); } catch (_) {}
+  gameStorage.setItem('tanuki_haptics', hapticsOn ? '1' : '0');
 }
-try {
-  const saved = localStorage.getItem('tanuki_haptics');
-  if (saved !== null) hapticsOn = saved === '1';
-} catch (_) {}
+// Called only after the native database (and any legacy migration) is ready.
+export function initializeHaptics() {
+  const saved = gameStorage.getItem('tanuki_haptics');
+  hapticsOn = saved === null || saved === '1';
+}
 export const hapticsEnabled = () => hapticsOn;
+
+export function showNativeStorageInfo() {
+  const b = bridge();
+  if (!b) return;
+  try { Promise.resolve(b.callHandler('showStorageInfo')).catch(() => {}); } catch (_) {}
+}
 
 /** Fire a short haptic. `type` is one of VIBRATE's keys. */
 export function haptic(type = 'light') {

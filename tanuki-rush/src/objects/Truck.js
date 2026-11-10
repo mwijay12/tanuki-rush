@@ -122,6 +122,7 @@ export class Truck {
     this.gap = 999;
     this.mesh.visible = false;
     this.hitCool = 0;
+    this._splashed = false;
   }
 
   get active() { return this.state === 'intro' || this.state === 'chase'; }
@@ -129,14 +130,18 @@ export class Truck {
   get proximity() { return this.active || this.state === 'falling' ? clamp(1 - this.gap / 140, 0, 1) : 0; }
 
   onRespawn(s) {
+    // Rewind the chase to match the checkpoint, including stale hit cooldowns
+    // and the truck's actual pose. Do not bring it back after its end section.
+    this.reset();
     if (s >= this.cfg.triggerS && s < this.cfg.endS) {
       this.state = 'chase';
       this.s = Math.max(this.cfg.triggerS - 20, s - this.cfg.spawnBehind);
-      this.x = 0;
+      this.gap = s - this.s;
       this.speed = 30;
       this.mesh.visible = true;
-    } else if (s < this.cfg.triggerS) {
-      this.reset();
+      this._pose();
+    } else if (s >= this.cfg.endS) {
+      this.state = 'done';
     }
   }
 
@@ -207,7 +212,7 @@ export class Truck {
       const dsFront = ps - front;
       if (dsFront < 0.8 && dsFront > -16 && Math.abs(player.mainX - this.x) < 7.6 && player.mainH < 8) {
         this.hitCool = 1.5;
-        if (player.hurt({ from: 'behind' })) this.events.emit('truckHit');
+        if (player.hurt()) this.events.emit('truckHit');
       }
     }
 

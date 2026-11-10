@@ -108,6 +108,9 @@ for (const [orientation, viewport] of [
     await touch('touchStart', [p(5, 95, 100)]);
     await touch('touchMove', [p(5, 155, 100)]);
     await touch('touchCancel', []);
+    // CDP can acknowledge the cancellation before the renderer dispatches its
+    // pointercancel event, especially during software WebGL rendering.
+    await page.waitForFunction(() => window.__game.input.touch.steer === 0, null, { timeout: 5_000 });
     assert.equal((await state()).steer, 0, 'a canceled gesture should center steering');
 
     // Start the opposite-direction check from rest so lateral inertia from
@@ -167,6 +170,25 @@ for (const [orientation, viewport] of [
     assert.equal(current.steer, 0);
     assert.equal(current.scrollX, 0, 'touch controls must not scroll horizontally');
     assert.equal(current.scrollY, 0, 'touch controls must not scroll vertically');
+
+    // Restarting from pause while BOOST is held must clear the old audio loop,
+    // not carry its sound into the countdown or next run.
+    const boostAgain = await center('.tbtn.boost');
+    await touch('touchStart', [p(6, boostAgain.x, boostAgain.y)]);
+    await frames(1);
+    assert.equal((await state()).boosting, true);
+    assert.equal(await page.evaluate(() => window.__game.audio._want.boost), true);
+    const pauseAgain = await center('.tbtn.pausebtn');
+    await touch('touchStart', [p(6, boostAgain.x, boostAgain.y), p(7, pauseAgain.x, pauseAgain.y)]);
+    await touch('touchEnd', [p(6, boostAgain.x, boostAgain.y)]);
+    await frames(1);
+    assert.equal((await state()).gameState, 'paused');
+    await touch('touchEnd', []);
+    await page.locator('[data-a=restart]').tap();
+    await page.waitForFunction(() => window.__game.state === 'countdown', null, { timeout: 30_000 });
+    assert.equal(await page.evaluate(() => window.__game.audio._want.boost), false);
+    assert.equal(await page.evaluate(() => window.__game.player.boosting), false);
+    assert.equal(await page.evaluate(() => window.__game.input.touch.boost), false);
   } finally {
     if (browser) await browser.close();
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

@@ -20,7 +20,8 @@ import { Objects } from './objects/Objects.js';
 import { Truck } from './objects/Truck.js';
 import { HUD, formatTime } from './ui/HUD.js';
 import { tickStreak, activeStreak, tierInfo, missionStatus, awardRun, normalizeProgress, selectTrail, equippedTrail, TRAILS } from './progression.js';
-import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, requestNotifications, cancelStreakReminder, isNativeApp } from './platform.js';
+import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, requestNotifications, cancelStreakReminder, isNativeApp, showNativeStorageInfo } from './platform.js';
+import { gameStorage } from './storage.js';
 import { setAnisotropy } from './core/textures.js';
 import { Bot } from './core/Bot.js';
 
@@ -111,12 +112,12 @@ export class Game {
   // ======================================================================= setup
   _loadSave() {
     try {
-      const save = JSON.parse(localStorage.getItem(STORE_KEY));
+      const save = JSON.parse(gameStorage.getItem(STORE_KEY));
       return save && typeof save === 'object' && !Array.isArray(save) ? save : {};
     } catch { return {}; }
   }
   _writeSave() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(this.save)); } catch { /* storage unavailable */ }
+    gameStorage.setItem(STORE_KEY, JSON.stringify(this.save));
   }
 
   _loadOptional() {
@@ -228,19 +229,26 @@ export class Game {
       this._leafComboT = 0.5;
       A().play('leaf', { pitch: 1 + Math.min(this._leafCombo, 12) * 0.035, pan: (Math.random() - 0.5) * 0.4 });
     });
-    ev.on('hurt', ({ lost, pos }) => {
-      this.input.rumble(0.9, 0.6, 260);
-      A().play('hurt');
-      if (lost > 0) A().play('leafScatter');
-      this.objects.scatterLeaves(pos, lost);
-      this.rig.shake(0.8, 0.4);
-      this.post.doFlash(0xff3030, 0.35);
-    });
     ev.on('death', ({ reason }) => {
-      A().play('death');
+      if (this.state !== 'play') return;
+      this.state = 'crashing';
+      this.crashT = 0;
       this.deaths++;
-      if (reason === 'hit') this.post.doFlash(0xff3030, 0.5);
-      this.hud.message('MISS…', { cls: 'small', duration: 1.2 });
+      this.input.clearLatched();
+      this.hud.showTouch(false);
+      this.hud.clearHint();
+      this.hud.clearMessage();
+      this.hud.warning(false);
+      this.cine = null;
+      this.rig.setOverride(null);
+      A().setWind(0); A().setTruck(0); A().setGrind(false); A().setBoost(false);
+      A().stopMusic(0.3);
+      A().play('death');
+      if (reason === 'hit') {
+        this.input.rumble(0.9, 0.6, 260);
+        this.rig.shake(0.8, 0.4);
+        this.post.doFlash(0xff3030, 0.5);
+      }
     });
     ev.on('boostStart', () => {
       this.input.rumble(0.5, 0.8, 180);
@@ -303,6 +311,9 @@ export class Game {
     ev.on('truckHit', () => { A().play('crash'); this.rig.shake(1.2, 0.5); this.input.rumble(1, 1, 400); haptic('heavy'); });
     ev.on('truckDown', () => {
       A().play('crash');
+      // The checkpoint may put a revived player back before the truck falls.
+      if (this.state !== 'play' || this.truckBonusAwarded) return;
+      this.truckBonusAwarded = true;
       this.hud.popup('TRUCK DOWN!  +2000', '#ffb03a');
       this.objects.addScore(2000, 'TRUCK', null);
     });
@@ -381,6 +392,8 @@ export class Game {
       ...this._settingsBindings(),
       haptics: hapticsEnabled(),
       onHaptics: () => { const on = !hapticsEnabled(); setHaptics(on); if (on) haptic('select'); return on; },
+      deviceStorage: gameStorage.native,
+      onDeviceStorage: showNativeStorageInfo,
       reminders: isNativeApp() ? !!this.save.reminders : null,
       onReminders: async () => {
         if (this.save.reminders) {
@@ -414,6 +427,7 @@ export class Game {
     keepAwake(false);
     this.hud.showHUD(false);
     this.hud.hideResults();
+    this.hud.hideGameOver();
     this.hud.hidePause();
     this.hud.showTouch(false);
     this.hud.clearMessage();
@@ -435,8 +449,8 @@ export class Game {
     });
     this.audio.setWind(0); this.audio.setTruck(0); this.audio.setGrind(false); this.audio.setBoost(false);
     this.audio.playMusic('title');
-    if (!localStorage.getItem('tanuki_intro')) {
-      this.hud.showIntro(() => { try { localStorage.setItem('tanuki_intro', '1'); } catch (_) {} });
+    if (!gameStorage.getItem('tanuki_intro')) {
+      this.hud.showIntro(() => { gameStorage.setItem('tanuki_intro', '1'); });
     }
   }
 
@@ -445,6 +459,7 @@ export class Game {
     this._starting = true;
     this.hud.hideTitle();
     this.hud.hideResults();
+    this.hud.hideGameOver();
     this.hud.hidePause();
     await this._initAudio();
     this._starting = false;
@@ -467,13 +482,15 @@ export class Game {
   }
 
   resetRun() {
+    // Restarting while BOOST was held must not leave its old loop playing.
+    this.audio.setWind(0); this.audio.setTruck(0); this.audio.setGrind(false); this.audio.setBoost(false);
+    this.audio.setMusicIntensity(0);
+    this.input.clearLatched();
     const s0 = this.params.has('s') ? parseFloat(this.params.get('s')) : this.level.startS;
     this.player.reset(s0, { board: this.level.main.zoneName(s0) === 'board' });
     this.player.leaves = 0;
     this.player.boostGauge = 0.5;
-    this.objects.resetFrom(-10);
-    this.objects.score = 0;
-    this.objects.clearTransient();
+    this.objects.resetForNewRun();
     const red = new THREE.Color(0xff3030);
     for (const cp of this.objects.checkpoints) { cp.active = false; for (const li of cp.lamps) this.objects.cpLamps.setColorAt(li, red); }
     if (this.objects.cpLamps.instanceColor) this.objects.cpLamps.instanceColor.needsUpdate = true;
@@ -484,9 +501,15 @@ export class Game {
     this.enemiesDown = 0;
     this.leavesCollected = 0;
     this.finishedRun = null;
+    this.revivesUsed = 0;
+    this.truckBonusAwarded = false;
     this.checkpoint = { s: s0, time: 0 };
     this.goalT = 0;
-    this.respawnT = 0;
+    this.crashT = 0;
+    this._prevWhooshS = null;
+    this._leafCombo = 0;
+    this._leafComboT = 0;
+    this._boostFX = 0;
     this.rig.override = null;
     this.rig.overrideBlend = 0;
     this.cine = null;
@@ -570,16 +593,49 @@ export class Game {
     setTimeout(() => { if (this.state === 'results') this.audio.play('rankReveal'); }, 1700);
   }
 
-  _respawn() {
+  _gameOver() {
+    if (this.state !== 'crashing') return;
+    this.state = 'gameover';
+    keepAwake(false);
+    this.hud.showHUD(false);
+    this.audio.playJingle('fail');
+    this.hud.showGameOver({
+      score: this.objects.score, time: this.runTime, leaves: this.player.leaves,
+      canRevive: this.revivesUsed === 0, reason: this.player.deadReason,
+    }, {
+      onRevive: () => this.revive(),
+      onRetry: () => this.startRun(),
+      onTitle: () => this.toTitle(),
+    });
+  }
+
+  /** The only path back into a failed run: one free checkpoint revive. */
+  revive() {
+    if (this.state !== 'gameover' || this.revivesUsed !== 0) return false;
+    this.revivesUsed = 1; // Consume before changing the UI; repeated taps cannot reuse it.
     const cp = this.checkpoint;
+    const leaves = this.player.leaves;
+    const boost = this.player.boostGauge;
     this.player.reset(cp.s, { board: this.level.main.zoneName(cp.s) === 'board' });
-    this.player.leaves = 0;
-    this.player.invuln = 1.5;
-    this.objects.resetFrom(cp.s);
+    this.player.leaves = leaves;
+    this.player.boostGauge = boost;
+    this.player.invuln = 2.2;
+    // Keep collected leaves, defeated enemies and smashed cars gone. Rewinding
+    // their state while retaining score would pay for the same objects twice.
     this.objects.clearTransient();
     this.truck.onRespawn(cp.s);
     this.rig.snap(this.player);
+    this._prevWhooshS = cp.s;
+    this._boostFX = 0;
+    this.input.clearLatched();
+    this.hud.hideGameOver();
     this.hud.fade(false);
+    this.state = 'play';
+    keepAwake(true);
+    this.hud.showHUD(true);
+    this.hud.showTouch(true);
+    this.audio.playMusic('stage');
+    return true;
   }
 
   // ======================================================================= main loop
@@ -597,7 +653,7 @@ export class Game {
 
     if (inp.take('pause')) {
       if (this.state === 'paused') this.resume();
-      else if (this.state === 'results') { this.toTitle(); inp.clearLatched(); }
+      else if (this.state === 'results' || this.state === 'gameover') { this.toTitle(); inp.clearLatched(); }
       else this.pause();
     }
     if (this.state === 'paused') {
@@ -609,6 +665,8 @@ export class Game {
       case 'title': this._updateTitle(dt); break;
       case 'countdown': this._updateCountdown(dt); break;
       case 'play': this._updatePlay(dt); break;
+      case 'crashing': this._updateCrash(dt); break;
+      case 'gameover': this._updateGameOver(dt); break;
       case 'goal': this._updateGoal(dt); break;
       case 'results': this._updateResults(dt); break;
       case 'paused': inp.clearLatched(); if (!noRender) this._render(); return;
@@ -677,7 +735,10 @@ export class Game {
     // physics substeps (<= 1/120 s each)
     const n = Math.max(1, Math.ceil(dt / (1 / 120)));
     const h = dt / n;
-    for (let i = 0; i < n; i++) p.step(h, inp, i === 0);
+    for (let i = 0; i < n; i++) {
+      p.step(h, inp, i === 0);
+      if (this.state !== 'play') return;
+    }
 
     // board → running transition (mid-air after the last board ramp)
     if (p.onBoard && p.mainS > this.level.boardEndS && p.state !== 'dead') {
@@ -688,7 +749,9 @@ export class Game {
     }
 
     this.objects.update(dt, p, this.camera);
+    if (this.state !== 'play') return;
     this.truck.update(dt, p);
+    if (this.state !== 'play') return;
 
     // falling into the sea or below the ground ends the attempt right away
     if (p.state === 'air' && p.mainH < -2) {
@@ -703,12 +766,7 @@ export class Game {
       }
     }
 
-    // death / respawn
-    if (p.state === 'dead') {
-      this.respawnT += dt;
-      if (this.respawnT > 1.0) this.hud.fade(true);
-      if (this.respawnT > 1.6) { this.respawnT = 0; this._respawn(); }
-    }
+    if (this.state !== 'play') return;
 
     if (cine) this._updateCine(rdt);
     this.rig.truckPush = damp(this.rig.truckPush, this.truck.active ? clamp((34 - this.truck.gap) / 22, 0, 1) : 0, 3, rdt);
@@ -744,6 +802,27 @@ export class Game {
     }
     this.hud.update({ score: this.objects.score, time: this.runTime, leaves: p.leaves, speed: sp, boost: p.boostGauge, boosting: p.boosting, section: SECTION_NAMES[zone] || '' });
     this.hud.warning(this.truck.danger);
+  }
+
+  _updateCrash(dt) {
+    // Animate the fall briefly, but freeze the run clock, hazards and scoring.
+    this.crashT += dt;
+    this.player.step(dt, this.input, false);
+    this._updateModel(dt);
+    this.rig.update(dt, this.player);
+    this._updateWorld(dt, true);
+    this._setFX(0, 0, 0, 0.35);
+    if (this.crashT >= 0.8) this._gameOver();
+  }
+
+  _updateGameOver(dt) {
+    this._updateWorld(dt, true);
+    this._setFX(0, 0, 0, 0.35);
+    if (this.input.take('retry')) this.startRun();
+    else if (this.input.take('confirm')) {
+      if (this.revivesUsed === 0) this.revive();
+      else this.startRun();
+    }
   }
 
   _whoosh(p) {

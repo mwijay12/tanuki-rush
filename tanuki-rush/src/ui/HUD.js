@@ -1,4 +1,5 @@
 import './hud.css';
+import { gameStorage } from '../storage.js';
 
 const LEAF_SVG = `<svg class="leaf-icon" viewBox="0 0 40 40"><path d="M20 2 C31 10 33 24 20 36 C7 24 9 10 20 2 Z" fill="#ffc629" stroke="#0c1633" stroke-width="3"/><path d="M20 6 L20 37" stroke="#d98a0b" stroke-width="2.5"/></svg>`;
 
@@ -57,6 +58,12 @@ export class HUD {
     root.appendChild(this.title);
     this.results = el('div', 'screen results hidden');
     root.appendChild(this.results);
+    this.gameOver = el('div', 'screen gameover hidden');
+    this.gameOver.setAttribute('role', 'dialog');
+    this.gameOver.setAttribute('aria-modal', 'true');
+    this.gameOver.setAttribute('aria-labelledby', 'gameover-heading');
+    this.gameOver.tabIndex = -1;
+    root.appendChild(this.gameOver);
     this.pause = el('div', 'screen pause hidden');
     root.appendChild(this.pause);
     this.settings = el('div', 'screen settings hidden');
@@ -78,7 +85,7 @@ export class HUD {
     this._last = {};
     // Touch steering divisor: smaller = more sensitive. Persisted on its own so
     // the game's save schema does not need to change.
-    this.steerDiv = Number(localStorage.getItem('tanuki_steerDiv')) || 50;
+    this.steerDiv = Number(gameStorage.getItem('tanuki_steerDiv')) || 50;
     this._buildTouch();
   }
 
@@ -103,8 +110,6 @@ export class HUD {
     this.set('leaves', String(leaves));
     this.set('speed', String(Math.round(speed * 3.6)));
     if (section !== undefined) this.set('section', section);
-    const zero = leaves === 0;
-    if (this._zero !== zero) { this._zero = zero; this.leavesRow.classList.toggle('zero', zero); }
     const b = Math.round(boost * 200) / 200;
     if (this._boost !== b) { this._boost = b; this.k.boostFill.style.transform = `scaleX(${b})`; }
     if (this._boosting !== boosting) { this._boosting = boosting; this.boostBar.classList.toggle('active', boosting); }
@@ -262,7 +267,7 @@ export class HUD {
 
   // ------------------------------------------------------------------ settings
   /** Modal settings panel. Purely a view: every change is applied by the caller. */
-  showSettings({ quality, onQuality, muted, onMute, onResetAudio = async () => false, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false, reminders = null, onReminders = async () => false }) {
+  showSettings({ quality, onQuality, muted, onMute, onResetAudio = async () => false, softFx, onSoftFx, onClose, haptics = null, onHaptics = () => false, reminders = null, onReminders = async () => false, deviceStorage = false, onDeviceStorage = () => {} }) {
     const qLabel = { low: 'LOW', mid: 'MID', high: 'HIGH' };
     const sensLabel = (d) => (d <= 32 ? 'HIGH' : d >= 70 ? 'LOW' : 'MID');
     const sensStep = (dir) => {
@@ -270,7 +275,7 @@ export class HUD {
       const i = steps.indexOf(this.steerDiv);
       const next = steps[Math.max(0, Math.min(steps.length - 1, (i === -1 ? 1 : i) + dir))];
       this.steerDiv = next;
-      localStorage.setItem('tanuki_steerDiv', String(next));
+      gameStorage.setItem('tanuki_steerDiv', String(next));
       return sensLabel(next);
     };
     this.settings.innerHTML = `
@@ -290,6 +295,8 @@ export class HUD {
           <span class="set-ctl"><button class="btn" data-haptics="1">${haptics ? 'ON' : 'OFF'}</button></span></div>`}
         ${reminders === null ? '' : `<div class="set-row"><span class="set-label">REMINDERS<span class="set-hint">optional notifications</span></span>
           <span class="set-ctl"><button class="btn" data-reminders="1">${reminders ? 'ON' : 'OFF'}</button></span></div>`}
+        ${deviceStorage ? `<div class="set-row"><span class="set-label">DEVICE STORAGE<span class="set-hint">offline</span></span>
+          <span class="set-ctl"><button class="btn" data-device-storage="1">DETAILS</button></span></div>` : ''}
       </div>
       <button class="btn big" data-close="1">BACK</button>
       <div class="credit">© 2026 Mwijay · game by tanuu5 · MIT</div>`;
@@ -313,6 +320,7 @@ export class HUD {
       if (f) { e.stopPropagation(); f.textContent = onSoftFx() ? 'REDUCED' : 'FULL'; return; }
       const h = e.target.closest('[data-haptics]');
       if (h) { e.stopPropagation(); h.textContent = onHaptics() ? 'ON' : 'OFF'; return; }
+      if (e.target.closest('[data-device-storage]')) { e.stopPropagation(); onDeviceStorage(); return; }
       const remindersButton = e.target.closest('[data-reminders]');
       if (remindersButton) {
         e.stopPropagation();
@@ -382,7 +390,7 @@ export class HUD {
         ${steps.map((s) => `<div class="intro-step"><span class="intro-n">${s.n}</span>
           <div><div class="intro-t">${s.t}</div><div class="intro-d">${s.d}</div></div></div>`).join('')}
       </div>
-      <div class="intro-foot">Collect leaves to refill the gauge · reach the bay before the truck catches you</div>
+      <div class="intro-foot">Collect leaves to refill boost · one free checkpoint revive after a crash or fall</div>
       <button class="btn big" data-go="1">GOT IT</button>`;
     this.intro.classList.remove('hidden');
     this.intro.onclick = (e) => {
@@ -431,6 +439,41 @@ export class HUD {
   }
 
   hideResults() { this.results.classList.add('hidden'); this.results.onclick = null; }
+
+  // ------------------------------------------------------------ game over
+  showGameOver({ score, time, leaves, canRevive, reason }, { onRevive, onRetry, onTitle }) {
+    const description = reason === 'hit' ? 'You crashed!' : 'You fell off the course!';
+    this.gameOver.innerHTML = `
+      <div class="gameover-layout">
+        <section class="gameover-main">
+          <div class="eyebrow">STAGE 01 / HILLSIDE CITY</div>
+          <h2 id="gameover-heading">GAME OVER<span>.</span></h2>
+          <p>${description} ${canRevive ? 'Your run can continue.' : 'Your free revive has been used.'}</p>
+          <div class="gameover-stats">
+            <div><span>TIME</span><strong>${formatTime(time)}</strong></div>
+            <div><span>SCORE</span><strong>${score.toLocaleString()}</strong></div>
+            <div><span>LEAVES</span><strong>${leaves}</strong></div>
+          </div>
+        </section>
+        <section class="gameover-choices" aria-label="Choose what to do next">
+          ${canRevive ? `<div class="gameover-note"><b>ONE FREE REVIVE</b><span>Continue from your last checkpoint. Score and leaves stay with you.</span></div>
+            <button class="ride-btn gameover-button" data-gameover="revive">REVIVE FREE <span aria-hidden="true">↗</span></button>` :
+            '<div class="gameover-note"><b>REVIVE USED</b><span>Start a new run to get another free revive.</span></div>'}
+          <button class="garage-btn gameover-button" data-gameover="retry">RETRY FROM START</button>
+          <button class="garage-btn gameover-button" data-gameover="title">TITLE</button>
+        </section>
+      </div>`;
+    this.gameOver.classList.remove('hidden');
+    this.gameOver.onclick = (e) => {
+      const action = e.target.closest('[data-gameover]')?.dataset.gameover;
+      if (action === 'revive' && canRevive) onRevive();
+      else if (action === 'retry') onRetry();
+      else if (action === 'title') onTitle();
+    };
+    this.gameOver.focus({ preventScroll: true });
+  }
+
+  hideGameOver() { this.gameOver.classList.add('hidden'); this.gameOver.onclick = null; }
 
   // ------------------------------------------------------------------ pause
   showPause({ onResume, onRestart, onTitle, onSettings = () => {} }) {

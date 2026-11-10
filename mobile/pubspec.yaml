@@ -1,7 +1,7 @@
 name: tanuki_rush
 description: "Native Android shell that plays TANUKI RUSH offline, with no browser and no network."
 publish_to: 'none'
-version: 1.0.2+3
+version: 1.0.5+6
 
 environment:
   sdk: ^3.13.7

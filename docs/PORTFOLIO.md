@@ -16,11 +16,10 @@ verifiable from the repository; nothing is estimated.
 Packaged an MIT-licensed browser game ([tanuu5/tanuki-rush](https://github.com/tanuu5/tanuki-rush))
 as a native Android application. Diagnosed that Chromium refuses to load the game's
 code-split ES modules from a `file://` origin, and solved it with an in-process HTTP
-server on `127.0.0.1` that serves only bundled assets — preserving `localStorage`
-records and module semantics without a network dependency. Added landscape lock,
-immersive fullscreen, a back-button policy, offline font bundling, a scoped
-cleartext-traffic policy for loopback only, and 17 dependency-free checks covering
-MIME handling, path traversal and port isolation.
+server on `127.0.0.1` that serves only bundled assets and preserves module semantics
+without a network dependency. Added app-private Android SQLite for progress, a
+one-time legacy migration, native storage status UI, landscape lock, immersive
+fullscreen, offline fonts, a loopback-only traffic policy, and automated checks.
 
 ## Swahili version (kwa CV ya Tanzania)
 
@@ -38,11 +37,12 @@ kitufe cha kurudi, fonts za offline, na vipimo 17 vya kujitegemea.
    blocked by CORS. Symptom is a blank black screen with no useful error. Verified by
    inspecting the built `index.html` before writing any Dart.
 2. **Why not fix the build instead?** Forcing a single IIFE bundle would work around
-   the symptom but still leaves `localStorage` unreliable on `file://`, which the game
-   needs for best times. The loopback server fixes the origin problem once, for
-   modules, storage and fonts alike.
-3. **Port `0`, not a fixed port.** The OS assigns a free ephemeral port, so a second
-   instance of the app cannot collide with the first.
+   the symptom but still leaves `localStorage` unreliable on `file://`, which the
+   legacy save migration and pending-write journal need. Loopback provides a stable
+   origin for modules, storage and fonts.
+3. **Fixed port, not port `0`.** The WebView's legacy keys and pending journal are
+   scoped to the whole origin. A port conflict fails explicitly instead of silently
+   switching to a different origin.
 4. **Serve from an explicit index, not a directory listing.** The asset list is
    generated at build time (`asset_index.json`) rather than read from Flutter's
    internal `AssetManifest`, whose format has changed between SDK versions.

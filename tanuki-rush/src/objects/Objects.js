@@ -55,7 +55,7 @@ export class Objects {
     this.panels = it.panels.map((p) => ({ ...p, cool: 0 })).sort(bySort);
     this.ramps = it.ramps.map((r) => ({ ...r, cool: 0 })).sort(bySort);
     this.springs = it.springs.map((p) => ({ ...p, cool: 0, squash: 0 })).sort(bySort);
-    this.rings = it.rings.map((p) => ({ ...p, cool: 0, flash: 0 })).sort(bySort);
+    this.rings = it.rings.map((p) => ({ ...p, cool: 0, flash: 0, awarded: false })).sort(bySort);
     this.enemies = it.enemies.map((e, i) => ({ ...e, alive: true, base: e.pos.clone(), pos: e.pos.clone(), phase: i * 1.3, yaw: 0 })).sort(bySort);
     this.cars = it.cars.map((c) => ({ ...c, state: 'parked', vel: new THREE.Vector3(), spin: new THREE.Vector3(), rot: new THREE.Euler(), pos: new THREE.Vector3(), quat: new THREE.Quaternion(), t: 0 })).sort(bySort);
     this.checkpoints = it.checkpoints.map((c) => ({ ...c, active: false })).sort(bySort);
@@ -309,6 +309,17 @@ export class Objects {
     for (const sc of this.scatter) sc.life = 0;
   }
 
+  /** A new run resets everything; reviving deliberately does not. */
+  resetForNewRun() {
+    this.resetFrom(-Infinity);
+    this.score = 0;
+    for (const p of this.panels) p.cool = 0;
+    for (const r of this.ramps) r.cool = 0;
+    for (const s of this.springs) { s.cool = 0; s.squash = 0; }
+    for (const r of this.rings) { r.cool = 0; r.flash = 0; r.awarded = false; }
+    this.clearTransient();
+  }
+
   _placeCarsFrom(s) {
     const F = this.F;
     for (const c of this.cars) {
@@ -360,7 +371,9 @@ export class Objects {
     const a = this.prevPC || this.pc;
     const b = this.pc;
     const ps = player.mainS;
-    const active = player.state !== 'dead' && player.state !== 'goal';
+    // A collision can change state in the middle of this update. Never allow
+    // later objects, checkpoints or the goal to award progress after a crash.
+    const active = () => player.state !== 'dead' && player.state !== 'goal';
 
     // ---------------- leaves
     {
@@ -373,7 +386,7 @@ export class Objects {
         _v.copy(l.pos); _v.y += Math.sin(t * 2.4 + l.phase) * 0.12;
         mesh.setMatrixAt(i, _m.compose(_v, _q, _s.set(1, 1, 1)));
       }
-      if (active) {
+      if (active()) {
         const i0 = lowerBound(this.leaves, ps - 25);
         for (let i = i0; i < this.leaves.length && this.leaves[i].s < ps + 25; i++) {
           const l = this.leaves[i];
@@ -406,7 +419,7 @@ export class Objects {
         const blink = sc.life < 1.5 && Math.floor(sc.life * 12) % 2 === 0;
         _q.setFromAxisAngle(Y, t * 8 + i);
         this.scatterMesh.setMatrixAt(i, _m.compose(sc.pos, _q, blink ? ZERO_S : _s.set(1, 1, 1)));
-        if (active && sc.life < 3.6 && segDist2(a, b, sc.pos) < 1.7 * 1.7 && player.hurtTimer <= 0) {
+        if (active() && sc.life < 3.6 && segDist2(a, b, sc.pos) < 1.7 * 1.7 && player.hurtTimer <= 0) {
           sc.life = 0;
           this._collectLeaf(null, player, sc.pos);
         }
@@ -416,7 +429,7 @@ export class Objects {
 
     // ---------------- dash panels
     this.panelTex.offset.y -= dt * 2.2;
-    if (active && player.state === 'ground' && player.track === main) {
+    if (active() && player.state === 'ground' && player.track === main) {
       const i0 = lowerBound(this.panels, ps - 4);
       for (let i = i0; i < this.panels.length && this.panels[i].s < ps + 4; i++) {
         const p = this.panels[i];
@@ -433,7 +446,7 @@ export class Objects {
 
     // ---------------- ramps (ride up the wedge, launch at the lip)
     player.lift = 0;
-    if (active && player.state === 'ground' && player.track === main) {
+    if (active() && player.state === 'ground' && player.track === main) {
       const i0 = lowerBound(this.ramps, ps - 1);
       for (let i = Math.max(0, i0 - 1); i < this.ramps.length && this.ramps[i].s < ps + 14; i++) {
         const r = this.ramps[i];
@@ -471,7 +484,7 @@ export class Objects {
       sp.squash = Math.max(0, sp.squash - dt * 4);
       const k = 1 - Math.sin(Math.min(1, sp.squash) * Math.PI) * 0.4;
       sp.mesh.scale.set(1, k, 1);
-      if (!active || sp.cool > 0 || Math.abs(sp.s - ps) > 30) continue;
+      if (!active() || sp.cool > 0 || Math.abs(sp.s - ps) > 30) continue;
       _v.copy(sp.pos).addScaledVector(sp.dir, 0.9);
       if (segDist2(a, b, _v) < 1.8 * 1.8) {
         sp.cool = 0.5;
@@ -489,14 +502,16 @@ export class Objects {
       r.mesh.rotateZ(dt * 1.5);
       const sc = 1 + r.flash * 0.35;
       r.mesh.scale.set(sc, sc, sc);
-      if (!active || r.cool > 0 || Math.abs(r.s - ps) > 30) continue;
+      if (!active() || r.cool > 0 || Math.abs(r.s - ps) > 30) continue;
       if (segDist2(a, b, r.pos) < 2.7 * 2.7) {
         r.cool = 0.6;
         r.flash = 1;
         _v2.copy(r.dir).multiplyScalar(r.power);
         player.launch(_v2, { lock: r.lock, gravityScale: r.gravity, pos: r.pos });
         this.events.emit('dashRing', { pos: r.pos.clone() });
-        this.addScore(50, 'RING', r.pos);
+        // A checkpoint revive can pass through the same ring again. It should
+        // still launch the player, but must not pay the same score twice.
+        if (!r.awarded) { r.awarded = true; this.addScore(50, 'RING', r.pos); }
       }
     }
 
@@ -530,7 +545,7 @@ export class Objects {
         _q2.setFromAxisAngle(Y, t * 25 + e.phase);
         _v.copy(e.pos); _v.y += 1.02;
         rotor.setMatrixAt(i, _m.compose(_v, _q2, _s.set(1, 1, 1)));
-        if (!active || !near) continue;
+        if (!active() || !near) continue;
         // collision
         const d2 = segDist2(a, b, e.pos);
         if (d2 < 1.5 * 1.5) {
@@ -541,7 +556,7 @@ export class Objects {
             this.destroyEnemy(e, player.boosting ? 'boost' : 'hit');
             if (player.state === 'air') { player.vel.y = Math.max(player.vel.y, 13); player.canAirAction = true; }
           } else if (player.invuln <= 0) {
-            player.hurt({ from: 'front' });
+            player.hurt();
           }
           continue;
         }
@@ -591,7 +606,7 @@ export class Objects {
           dirty = true;
           continue;
         }
-        if (c.state !== 'parked' || !active) continue;
+        if (c.state !== 'parked' || !active()) continue;
         if (Math.abs(c.s - ps) > 12) continue;
         if (player.track !== main && player.state === 'rail') continue;
         const ds = Math.abs(ps - c.s), dx = Math.abs(player.mainX - c.x);
@@ -601,7 +616,7 @@ export class Objects {
             this.smashCar(c, this.F.tan, Math.max(player.speed, 40));
             player.v *= 0.97;
           } else if (player.invuln <= 0) {
-            player.hurt({ from: 'front' });
+            player.hurt();
           }
         }
       }
@@ -610,7 +625,7 @@ export class Objects {
 
     // ---------------- checkpoints
     for (const cp of this.checkpoints) {
-      if (cp.active || !active) continue;
+      if (cp.active || !active()) continue;
       if (ps >= cp.s && ps < cp.s + 60) {
         cp.active = true;
         for (const li of cp.lamps) this.cpLamps.setColorAt(li, _c.set(0x35f08a));
@@ -621,7 +636,7 @@ export class Objects {
 
     // ---------------- goal
     this.goalLeaf.rotation.y = t * 1.8;
-    if (active && ps >= this.level.goalS) {
+    if (active() && ps >= this.level.goalS) {
       this.events.emit('goal', {});
     }
 
@@ -649,5 +664,8 @@ export class Objects {
     this.reticle.visible = false;
     for (const sc of this.scatter) sc.life = 0;
     this.prevPC = null;
+    this._prevS = null;
+    this.chain = 0;
+    this.chainTimer = 0;
   }
 }
