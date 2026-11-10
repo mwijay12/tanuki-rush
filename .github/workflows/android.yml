@@ -88,6 +88,25 @@ jobs:
       - name: Build installable APK
         working-directory: mobile
         run: ../tools/ci_run.sh flutter build apk --release --no-pub --target-platform android-arm,android-arm64
+      - name: Build x86_64 debug APK for the boot test
+        working-directory: mobile
+        run: ../tools/ci_run.sh flutter build apk --debug --no-pub --target-platform android-x64
+      - name: Boot smoke test on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          script: tools/ci_boot_test.sh
+      - name: Upload boot failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-failure
+          path: |
+            boot-failure.png
+            boot-failure-logcat.txt
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Test Android SQLite migrations, transactions and persistence
         working-directory: mobile/android
         run: ../../tools/ci_run.sh ./gradlew :app:testDebugUnitTest --no-daemon
