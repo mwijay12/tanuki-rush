@@ -6,7 +6,7 @@
 # report, where the app wedged before the first frame with no message.
 set -euo pipefail
 
-apk='mobile/build/app/outputs/flutter-apk/app-debug.apk'
+apk="${BOOT_TEST_APK:-mobile/build/app/outputs/flutter-apk/app-debug.apk}"
 test -f "$apk" || { echo "missing $apk; build it first"; exit 1; }
 
 adb logcat -c
