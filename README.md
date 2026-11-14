@@ -28,11 +28,15 @@ npm run dev -- --host 0.0.0.0
 
 Open the URL printed by Vite. Rotate a phone to landscape. The game needs WebGL2; performance depends on the device and browser. Settings includes a lower graphics quality option.
 
+### Published web build
+
+[`.github/workflows/web.yml`](.github/workflows/web.yml) tests the game, builds it, and publishes `tanuki-rush/dist` to GitHub Pages on pushes to `main` and on demand. Pages has to be switched on once in **Settings → Pages → Source: GitHub Actions** — a CI token cannot do it. This is the reliable way to play on a phone while the Android startup hang is open: the browser build has no Flutter engine in front of it, so it cannot hang before its first frame.
+
 ## Android APK
 
 Download the newest Android **pre-release** from the [Releases page](https://github.com/mwijay12/tanuki-rush/releases). Preview 1.0.1 addresses an Android WebView setting that blocked drag steering. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
 
-**Known issue:** on Android 16/17 the app can hang on an empty blue screen before Flutter draws anything. The CI boot test reproduces this with the same APK that boots fine on Android 14, so it is an engine/OS problem rather than a bad download. Preview 1.0.6 adds a native watchdog that replaces the dead blue screen with an on-screen explanation (device, Android version, wait time) plus Retry and Close, and the hang itself is still open. Until it is fixed, the browser build below is the reliable way to play on a new phone.
+**Known issue:** on newer Android the app can hang on an empty blue screen before Flutter draws anything. The CI boot test reproduced this once with the same APK that boots fine on Android 14 (API 34): it never painted on an Android 16 (API 36) emulator, so it is an engine/OS problem rather than a bad download. Android 17 (API 37) has no usable emulator image on the CI runners and cannot be tested there. Preview 1.0.6 adds a native watchdog that replaces the dead blue screen with an on-screen explanation (device, Android version, wait time) plus Retry and Close; the hang itself is still open. Until it is fixed, the browser build below is the reliable way to play on a new phone.
 
 **Preview signing is not production signing.** The current build uses an Android debug key. CI can generate a different key for each build, so updating an installed preview may require uninstalling it first, which deletes local progress. It is not suitable for a Play Store upload. Set up a securely backed-up release keystore and test on real phones before production.
 
