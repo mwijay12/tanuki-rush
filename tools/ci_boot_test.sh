@@ -2,28 +2,149 @@
 # Boot smoke test (runs on a CI emulator via android-emulator-runner).
 #
 # Installs the x86_64 debug APK, launches it, and fails unless the app paints
-# its first Flutter frame. Regression test for the 1.0.4 "empty blue screen"
-# report, where the app wedged before the first frame with no message.
-set -euo pipefail
+# its first Flutter frame. Regression test for the 1.0.4/1.0.5 "empty blue
+# screen" reports, where the app wedged before the first frame with no message.
+#
+# Every phase prints a marker, because "the boot test failed" is not enough:
+# an emulator that never finished booting is an infrastructure problem, while
+# "no first frame" on a healthy emulator is the actual bug. On failure the
+# script also reports whether the native watchdog fired, which separates
+# "the Flutter engine never painted" from "the process never ran at all".
+#
+# BOOT_TEST_APK lets the newer-API jobs point at a downloaded artifact.
+set -uo pipefail
 
-apk='mobile/build/app/outputs/flutter-apk/app-debug.apk'
-test -f "$apk" || { echo "missing $apk; build it first"; exit 1; }
+apk="${BOOT_TEST_APK:-mobile/build/app/outputs/flutter-apk/app-debug.apk}"
+package='com.tanukirush.tanuki_rush'
+frame_wait_seconds="${FRAME_WAIT_SECONDS:-180}"
 
+phase() { echo "PHASE: $*"; }
+fail() {
+  echo "::error::BOOT TEST FAILED ($1): $2"
+  exit 1
+}
+
+phase "emulator boot"
+adb wait-for-device || fail emulator "adb never saw a device"
+for _ in $(seq 1 60); do
+  [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
+  sleep 5
+done
+booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+[ "$booted" = "1" ] || fail emulator "sys.boot_completed never became 1 after 300s"
+
+# sys.boot_completed=1 comes BEFORE the package manager is reachable. Run
+# 43547900681 proved it: a cold API 34 emulator answered
+# "adb: failed to install ...: cmd: Can't find service: package" a full minute
+# after reporting boot complete, and three 20 s retries were not enough. The old
+# script ran `adb install` under `set -e` with no annotation at all, which is
+# exactly how the API 37 legs of runs 42977875935 and 43540123437 died - they
+# were never evidence of a missing Android 17 image. Wait for the service itself.
+for _ in $(seq 1 90); do
+  case "$(adb shell service check package 2>/dev/null)" in *found*) break ;; esac
+  sleep 5
+done
+case "$(adb shell service check package 2>/dev/null)" in
+  *found*) echo "Package service is up." ;;
+  *) fail emulator "the package service never came up, so adb install cannot work" ;;
+esac
+
+# Boot animation still running means first-boot dexopt is in progress and the
+# first frame would be slow for reasons that have nothing to do with the app.
+for _ in $(seq 1 60); do
+  [ "$(adb shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r')" = "stopped" ] && break
+  sleep 5
+done
+echo "bootanim: $(adb shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r')"
+
+sdk="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+release="$(adb shell getprop ro.build.version.release | tr -d '\r')"
+echo "Emulator ready: Android $release (API $sdk)"
+
+phase "apk"
+test -f "$apk" || fail apk "missing $apk; build or download it first"
+ls -lh "$apk"
+
+phase "install"
 adb logcat -c
-adb install "$apk"
-adb shell am start -n com.tanukirush.tanuki_rush/.MainActivity
+# `sys.boot_completed` can precede a usable package manager, and a fresh emulator
+# occasionally refuses the first install. Retry, and put adb's own words into the
+# annotation: "failed (install)" without the reason is not actionable, and this
+# phase is not the bug being hunted.
+install_output=""
+installed=false
+for attempt in 1 2 3; do
+  if install_output="$(adb install -r "$apk" 2>&1)"; then
+    installed=true
+    break
+  fi
+  echo "install attempt $attempt failed:"
+  printf '%s\n' "$install_output"
+  sleep 20
+done
+if [ "$installed" != true ]; then
+  fail install "$(printf '%s' "$install_output" | tr '\n' ' ' | tr -s ' ' | tail -c 300)"
+fi
 
-# The app prints [tanuki] first-frame-painted after its first frame.
-for _ in $(seq 1 36); do
+phase "launch"
+launch_output="$(adb shell am start -n "$package/.MainActivity" 2>&1)" || fail launch "$launch_output"
+printf '%s\n' "$launch_output"
+# `am start` can exit 0 while reporting a failure, which would otherwise be
+# misread later as "the app started but never painted".
+case "$launch_output" in
+  *Error*|*Exception*) fail launch "$launch_output" ;;
+esac
+
+phase "first frame"
+# The app prints [tanuki] first-frame-painted after its first frame, and
+# native-watchdog lines if the Android UI thread is alive but Flutter is not.
+deadline=$(( $(date +%s) + frame_wait_seconds ))
+while [ "$(date +%s)" -lt "$deadline" ]; do
   if adb logcat -d | grep -q 'first-frame-painted'; then
-    echo 'Boot smoke test passed: first Flutter frame painted.'
+    echo "PASSED: first Flutter frame painted on Android $release (API $sdk)."
     exit 0
   fi
   sleep 5
 done
 
-echo '::error::BOOT SMOKE TEST FAILED: no first frame within 3 minutes.'
+phase "diagnostics"
+log="$(adb logcat -d)"
+echo "--- app process ---"
+adb shell ps -A 2>/dev/null | grep "$package" || echo "app process is NOT running"
+echo "--- resumed activity ---"
+adb shell dumpsys activity activities 2>/dev/null | grep -iE "ResumedActivity|topResumedActivity" | head -n 5 || true
+# The activity is locked to sensorLandscape, so a stuck rotation or a missing
+# GPU backend would also stop the first frame. Record what the device reports.
+echo "--- display rotation ---"
+adb shell dumpsys window displays 2>/dev/null | grep -iE "mCurrentRotation|init=|cur=" | head -n 5 || true
+echo "--- graphics backend ---"
+adb shell dumpsys SurfaceFlinger 2>/dev/null | head -n 15 || true
+echo "--- watchdog / flutter / crash lines ---"
+grep -E 'TanukiBoot|TanukiStorage|\[tanuki\]|\[gate\]|flutter|Flutter|Impeller|impeller|Vulkan|AndroidRuntime|libc|DEBUG|ANR ' <<<"$log" | tail -n 200 || true
+echo "--- ANR traces ---"
+adb shell ls -l /data/anr 2>/dev/null || true
 adb exec-out screencap -p > boot-failure.png || true
 adb logcat -d > boot-failure-logcat.txt || true
+
+# The verdict has to travel inside the ::error:: annotation: Actions log and
+# artifact storage is unreachable from some sandboxes, while check-run
+# annotations are readable through api.github.com. Everything echoed above is
+# for a human reading the run in a browser; this is for the next agent.
+if grep -q 'native-watchdog: no first frame' <<<"$log"; then
+  verdict="watchdog fired - activity and Android UI thread alive, Flutter never painted"
+elif grep -q 'native-watchdog: armed' <<<"$log"; then
+  verdict="watchdog armed but never fired - no frame and no timeout line"
+elif grep -q 'native-watchdog' <<<"$log"; then
+  verdict="watchdog ran but found no Flutter engine to watch"
+else
+  verdict="no watchdog line - process never started or died before onCreate"
+fi
+if adb shell ps -A 2>/dev/null | grep -q "$package"; then
+  proc="process up"
+else
+  proc="process NOT running"
+fi
+echo "VERDICT: $verdict ($proc)"
+
 tail -n 50 boot-failure-logcat.txt || true
-exit 1
+fail "first frame" "no first Flutter frame in ${frame_wait_seconds}s on Android $release (API $sdk); $proc; $verdict"

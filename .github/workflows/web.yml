@@ -1,0 +1,83 @@
+name: Web (GitHub Pages)
+
+# Publishes the browser build so there is always a way to play that does not
+# depend on the Android shell. The startup hang on newer Android (see
+# docs/HANDOFF.md) happens in the Flutter engine before it draws anything, so
+# the web build is the reliable fallback while it is being diagnosed.
+#
+# tanuki-rush/.github/workflows/deploy.yml came with the upstream game but sits
+# in a subdirectory, where GitHub never reads it. This is the root-level copy
+# that actually runs, with the game's own tests added before publishing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and build the browser game
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tanuki-rush/package-lock.json
+      - name: Install and test
+        working-directory: tanuki-rush
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
+      - name: Build
+        working-directory: tanuki-rush
+        run: npm run build
+      # vite.config.js sets base: './' so the bundle works under the /tanuki-rush/
+      # Pages sub-path without any rewrite rules.
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: tanuki-rush/dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    runs-on: ubuntu-24.04
+    needs: build
+    # A pull request must prove the game builds; only main and a manual dispatch
+    # are allowed to replace the live site.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Pages has to be switched on by a human once (Settings -> Pages -> Source:
+      # GitHub Actions); a CI token gets 403 on POST /repos/{owner}/{repo}/pages.
+      # Until then deploy-pages can only fail, so say what is missing instead of
+      # turning every push to main red.
+      - name: Check that GitHub Pages is enabled
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/pages" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not enabled for this repository. Turn it on in Settings -> Pages -> Source: GitHub Actions, then re-run this workflow to publish."
+          fi
+      - id: deployment
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/deploy-pages@v5

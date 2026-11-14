@@ -28,9 +28,15 @@ npm run dev -- --host 0.0.0.0
 
 Open the URL printed by Vite. Rotate a phone to landscape. The game needs WebGL2; performance depends on the device and browser. Settings includes a lower graphics quality option.
 
+### Published web build
+
+[`.github/workflows/web.yml`](.github/workflows/web.yml) tests the game, builds it, and publishes `tanuki-rush/dist` to GitHub Pages on pushes to `main` and on demand. Pages has to be switched on once in **Settings → Pages → Source: GitHub Actions** — a CI token cannot do it. This is the reliable way to play on a phone while the Android startup hang is open: the browser build has no Flutter engine in front of it, so it cannot hang before its first frame.
+
 ## Android APK
 
 Download the newest Android **pre-release** from the [Releases page](https://github.com/mwijay12/tanuki-rush/releases). Preview 1.0.1 addresses an Android WebView setting that blocked drag steering. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
+
+**Known issue:** the app can hang on an empty blue screen before Flutter draws anything. The CI boot test has now seen it on two different emulator images — Android 16 (API 36) once on 1.0.5, and Android 14 (API 34) once after three consecutive passes — so it is intermittent rather than tied to one Android version, and a single green boot test proves nothing. Android 17 (API 37) cannot be boot-tested at all — the emulator action cannot bring up that image on the CI runners, which the test now proves by annotating every other failure path and still emitting nothing for API 37 — so Android 15 (API 35) is tested instead. Preview 1.0.6 adds a native watchdog that replaces the dead blue screen with an on-screen explanation (device, Android version, wait time) plus Retry and Close; the hang itself is still open. Until it is closed, the browser build below is the reliable way to play on a new phone.
 
 **Preview signing is not production signing.** The current build uses an Android debug key. CI can generate a different key for each build, so updating an installed preview may require uninstalling it first, which deletes local progress. It is not suitable for a Play Store upload. Set up a securely backed-up release keystore and test on real phones before production.
 
@@ -55,7 +61,7 @@ The asset script installs the locked npm dependencies and builds the game. Fonts
 
 ### CI and preview releases
 
-The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game and the SQLite helper (Robolectric), rebuilds/checks the offline assets, exercises touch, audio, crash/revive and the storage bridge in Chrome, tests Flutter's bridge and native UI, checks the asset server, and builds an APK. After rebuilding, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`, `test:audio`, `test:gameover` and `test:storage` locally. These checks do not replace a physical Android playthrough. A normal branch push produces an Actions artifact; a commit containing `[release-preview]` also publishes a uniquely tagged **pre-release** with its SHA-256 checksum.
+The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game and the SQLite helper (Robolectric), rebuilds/checks the offline assets, exercises touch, audio, crash/revive and the storage bridge in Chrome, tests Flutter's bridge and native UI, checks the asset server, and builds an APK. The APK must then paint its first Flutter frame on an API 34 emulator; separate diagnostic legs run the same boot test on API 36 and 37, where the startup hang currently reproduces. After rebuilding, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`, `test:audio`, `test:gameover` and `test:storage` locally. These checks do not replace a physical Android playthrough. A normal branch push produces an Actions artifact; a commit containing `[release-preview]` also publishes a uniquely tagged **pre-release** with its SHA-256 checksum.
 
 ### Why the app runs a loopback server
 

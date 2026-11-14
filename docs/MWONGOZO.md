@@ -16,6 +16,14 @@ Pakua APK ya **pre-release** mpya kwenye [GitHub Releases](https://github.com/mw
 
 **Muhimu:** APK ya preview inasainiwa kwa debug key, si key ya production. Builds tofauti zinaweza kuwa na signatures tofauti; Android inaweza kukataa update na kutaka u-uninstall ya zamani, jambo linaloweza kufuta progress. **Usi-uninstall ikiwa progress hiyo ni muhimu.** Kuhamisha progress ya zamani kwenda SQLite kunafanya kazi tu ukiweza ku-update bila kufuta data na ikiwa ilikuwa kwenye origin ile ile. Ijaribu kwenye simu halisi kabla ya kusambaza; Play Store inahitaji signing key ya kudumu iliyohifadhiwa salama.
 
+### Skrini tupu ya bluu
+
+Toleo la 1.0.4 na 1.0.5 lilikuwa na hitilafu: app ilikaa kwenye **skrini ya bluu bila chochote** na kitufe cha kurudi hakifanyi kazi. Sababu ni kwamba injini ya Flutter ilishindwa kuchora fremu ya kwanza, kwa hiyo hakuna ujumbe wa Dart ulioweza kuonekana — bluu uliokuwa unaonekana ni background ya window ya Android. Jaribio la CI liliweza kuiga tatizo hili mara moja: APK ile ile iliyochora fremu kwenye emulator ya Android 14 (API 34) haikuchora kabisa kwenye Android 16 (API 36). Kwa hiyo si download mbaya wala installation iliyoharibika. Baadaye tatizo hilo lilionekana pia kwenye emulator ya Android 14 (API 34) ambayo ilikuwa imepita mara tatu, kwa hiyo ni **hitilafu ya mara kwa mara (intermittent)**, si ya toleo moja la Android. Emulator ya Android 17 (API 37) **haiwezi kujaribiwa kwenye CI kabisa** — hakuna image inayoweza kuanzishwa kwenye runners, jambo ambalo sasa limethibitishwa kwa sababu script inaandika kila hatua ya kushindwa isipokuwa ile ya API 37. Badala yake tunajaribu Android 15 (API 35). Kwa hiyo ushahidi wa Android 17 unatokana na skrini ya watchdog kwenye simu yako pekee.
+
+Toleo la **1.0.6** linaongeza *watchdog* ya native: ikiwa hakuna fremu ndani ya sekunde 12, skrini itaonyesha maelezo — model ya simu, toleo la Android, API level na muda uliosubiriwa — pamoja na **Jaribu tena / Retry** na **Funga / Close**. Kwenye CI, emulator ya API 36 imepita mara nne mfululizo kwa 1.0.6, lakini kwa kuwa hitilafu ni ya mara kwa mara, kupita mara nne hakuthibitishi chochote — **hitilafu bado haijathibitishwa kutatuliwa**. Ukiona skrini hiyo, piga picha na uripoti maneno yaliyoandikwa; maelezo hayo ndiyo yanahitajika kutengeneza fix.
+
+Kwa sasa, njia salama zaidi ya kucheza ni **toleo la browser** kwenye Chrome ya simu — hakuna Flutter shell, hakuna skrini ya bluu. Chanzo kiko `tanuki-rush/`; kijengee kwa `npm run build` na utumie `npm run preview`. Workflow ya `.github/workflows/web.yml` itachapisha tovuti kwenye GitHub Pages (`https://mwijay12.github.io/tanuki-rush/`) mara tu Pages itakapowashwa kwenye Settings → Pages → Source: **GitHub Actions**; ni hatua moja ya kibinadamu kwa sababu token ya CI haina ruhusa ya `pages: write`.
+
 Kwa kujenga mwenyewe unahitaji Flutter 3.47.9, Java 17, Android SDK, Node 22 na Python 3:
 
 ```bash

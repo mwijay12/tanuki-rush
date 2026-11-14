@@ -91,6 +91,13 @@ jobs:
       - name: Build x86_64 debug APK for the boot test
         working-directory: mobile
         run: ../tools/ci_run.sh flutter build apk --debug --no-pub --target-platform android-x64
+      - name: Upload boot-test APK for newer-API jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-test-apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
       - name: Boot smoke test on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -144,3 +151,161 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "Tanuki Rush — Android preview $version (${GITHUB_SHA:0:7})" \
             --notes-file docs/PREVIEW_RELEASE.md
+
+  # Diagnostic coverage for the field report (Pixel 8 Pro, Android 17). The hang
+  # is intermittent rather than OS-specific: API 34 passed three times and then
+  # reported "no first Flutter frame in 180s" (run 43547895180), while API 36
+  # failed once on 1.0.5 and passed four times on 1.0.6. So this matrix samples
+  # the newest images instead of assuming one of them is the culprit, and the
+  # annotation carries the watchdog verdict. Each leg is independent
+  # (fail-fast: false) so one bad image never hides the others. Trim this once
+  # the hang is closed.
+  #
+  # API 37 is out for good, and this time the evidence is airtight. It was
+  # dropped once, restored on the theory that the old script had died silently in
+  # `adb install`, and run 43590007011 settled it: every failure path in
+  # ci_boot_test.sh now emits `::error::BOOT TEST FAILED (<phase>)`, including
+  # the emulator phase, and the API 37 leg still produced no annotation at all -
+  # only the action's generic exit code 1. The script never ran, so
+  # android-emulator-runner cannot bring up an API 37 image here. A leg that
+  # cannot execute is not coverage. Android 15 (API 35) replaces it: untested so
+  # far, and with the hang looking intermittent, another OS version is worth more
+  # than a third sample of the same one.
+  boot-newer-apis:
+    name: Boot test (API ${{ matrix.api }}, run ${{ matrix.attempt }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: 35
+            attempt: 1
+          - api: 36
+            attempt: 1
+          - api: 36
+            attempt: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - uses: actions/download-artifact@v4
+        with:
+          name: boot-test-apk
+          path: apk
+      - name: Boot smoke test on Android emulator (API ${{ matrix.api }}, run ${{ matrix.attempt }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          script: BOOT_TEST_APK=apk/app-debug.apk tools/ci_boot_test.sh
+      - name: Upload boot failure diagnostics (API ${{ matrix.api }}, run ${{ matrix.attempt }})
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-failure-api-${{ matrix.api }}-${{ matrix.attempt }}
+          path: |
+            boot-failure.png
+            boot-failure-logcat.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Is the pre-frame hang Impeller/Vulkan bring-up?
+  #
+  # Builds a second debug APK from an ephemeral checkout with
+  # io.flutter.embedding.android.EnableImpeller=false injected by
+  # tools/patch_disable_impeller.py, then boots it on the oldest and newest API
+  # levels that have a working emulator image. Nothing here is shipped: the
+  # committed manifest is never touched, so the released APK keeps Flutter's
+  # default rasterizer. Reading the result needs both legs — an Impeller-off
+  # build that fails on API 34 too means the opt-out is not a safe fallback,
+  # while one that boots on both means it is available if the field report from
+  # the native watchdog confirms a rasterizer hang.
+  build-impeller-off:
+    name: Build Impeller-off diagnostic APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install Android SDK components
+        run: tools/ci_run.sh sdkmanager 'platforms;android-34' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.3.13750724'
+      - name: Resolve Flutter packages
+        working-directory: mobile
+        run: ../tools/ci_run.sh flutter pub get
+      - name: Fetch verified Gradle distribution
+        run: tools/ci_run.sh tools/fetch_gradle_ci.sh
+      - name: Inject the Impeller opt-out
+        run: tools/ci_run.sh python3 tools/patch_disable_impeller.py
+      - name: Build the diagnostic APK
+        working-directory: mobile
+        run: ../tools/ci_run.sh flutter build apk --debug --no-pub --target-platform android-x64
+      - name: Confirm the opt-out reached the built manifest
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump xmltree \
+            --file AndroidManifest.xml mobile/build/app/outputs/flutter-apk/app-debug.apk \
+            | grep -A2 -F 'io.flutter.embedding.android.EnableImpeller'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: impeller-off-apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  boot-impeller-off:
+    name: Impeller-off boot test (API ${{ matrix.api }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: build-impeller-off
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [34, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - uses: actions/download-artifact@v4
+        with:
+          name: impeller-off-apk
+          path: apk
+      - name: Boot smoke test with Impeller disabled (API ${{ matrix.api }})
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          script: BOOT_TEST_APK=apk/app-debug.apk tools/ci_boot_test.sh
+      - name: Upload Impeller-off failure diagnostics (API ${{ matrix.api }})
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-failure-impeller-off-api-${{ matrix.api }}
+          path: |
+            boot-failure.png
+            boot-failure-logcat.txt
+          if-no-files-found: ignore
+          retention-days: 14
