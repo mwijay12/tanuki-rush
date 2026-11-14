@@ -16,6 +16,14 @@ Pakua APK ya **pre-release** mpya kwenye [GitHub Releases](https://github.com/mw
 
 **Muhimu:** APK ya preview inasainiwa kwa debug key, si key ya production. Builds tofauti zinaweza kuwa na signatures tofauti; Android inaweza kukataa update na kutaka u-uninstall ya zamani, jambo linaloweza kufuta progress. **Usi-uninstall ikiwa progress hiyo ni muhimu.** Kuhamisha progress ya zamani kwenda SQLite kunafanya kazi tu ukiweza ku-update bila kufuta data na ikiwa ilikuwa kwenye origin ile ile. Ijaribu kwenye simu halisi kabla ya kusambaza; Play Store inahitaji signing key ya kudumu iliyohifadhiwa salama.
 
+### Skrini tupu ya bluu
+
+Toleo la 1.0.4 na 1.0.5 lilikuwa na hitilafu: app ilikaa kwenye **skrini ya bluu bila chochote** na kitufe cha kurudi hakifanyi kazi. Sababu ni kwamba injini ya Flutter ilishindwa kuchora fremu ya kwanza, kwa hiyo hakuna ujumbe wa Dart ulioweza kuonekana — bluu uliokuwa unaonekana ni background ya window ya Android. Jaribio la CI sasa linaweza kuiga tatizo hili: APK ile ile hufaulu kwenye Android 14 (API 34) na kushindwa kwenye Android 16/17 (API 36/37), hivyo si download mbaya wala installation iliyoharibika.
+
+Toleo la **1.0.6** linaongeza *watchdog* ya native: ikiwa hakuna fremu ndani ya sekunde 12, skrini itaonyesha maelezo — model ya simu, toleo la Android, API level na muda uliosubiriwa — pamoja na **Jaribu tena / Retry** na **Funga / Close**. **Hitilafu yenyewe bado haijatatuliwa.** Ukiona skrini hiyo, piga picha na uripoti maneno yaliyoandikwa; maelezo hayo ndiyo yanahitajika kutengeneza fix.
+
+Kwa sasa, njia salama zaidi ya kucheza ni **toleo la browser**: fungua `tanuki-rush/` kwenye seva ya local au tovuti iliyotumwa, na ucheze kwenye Chrome ya simu. Hakuna WebView shell, hakuna bluu screen.
+
 Kwa kujenga mwenyewe unahitaji Flutter 3.47.9, Java 17, Android SDK, Node 22 na Python 3:
 
 ```bash

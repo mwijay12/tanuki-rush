@@ -32,6 +32,8 @@ Open the URL printed by Vite. Rotate a phone to landscape. The game needs WebGL2
 
 Download the newest Android **pre-release** from the [Releases page](https://github.com/mwijay12/tanuki-rush/releases). Preview 1.0.1 addresses an Android WebView setting that blocked drag steering. GitHub Actions also builds an artifact named `tanuki-rush-android-preview` on branch pushes. See [docs/PREVIEW_RELEASE.md](docs/PREVIEW_RELEASE.md) before installing an early build.
 
+**Known issue:** on Android 16/17 the app can hang on an empty blue screen before Flutter draws anything. The CI boot test reproduces this with the same APK that boots fine on Android 14, so it is an engine/OS problem rather than a bad download. Preview 1.0.6 adds a native watchdog that replaces the dead blue screen with an on-screen explanation (device, Android version, wait time) plus Retry and Close, and the hang itself is still open. Until it is fixed, the browser build below is the reliable way to play on a new phone.
+
 **Preview signing is not production signing.** The current build uses an Android debug key. CI can generate a different key for each build, so updating an installed preview may require uninstalling it first, which deletes local progress. It is not suitable for a Play Store upload. Set up a securely backed-up release keystore and test on real phones before production.
 
 ### Build from source
@@ -55,7 +57,7 @@ The asset script installs the locked npm dependencies and builds the game. Fonts
 
 ### CI and preview releases
 
-The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game and the SQLite helper (Robolectric), rebuilds/checks the offline assets, exercises touch, audio, crash/revive and the storage bridge in Chrome, tests Flutter's bridge and native UI, checks the asset server, and builds an APK. After rebuilding, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`, `test:audio`, `test:gameover` and `test:storage` locally. These checks do not replace a physical Android playthrough. A normal branch push produces an Actions artifact; a commit containing `[release-preview]` also publishes a uniquely tagged **pre-release** with its SHA-256 checksum.
+The root workflow [`.github/workflows/android.yml`](.github/workflows/android.yml) tests the game and the SQLite helper (Robolectric), rebuilds/checks the offline assets, exercises touch, audio, crash/revive and the storage bridge in Chrome, tests Flutter's bridge and native UI, checks the asset server, and builds an APK. The APK must then paint its first Flutter frame on an API 34 emulator; separate diagnostic legs run the same boot test on API 36 and 37, where the startup hang currently reproduces. After rebuilding, run `CHROME_BIN=/path/to/google-chrome npm --prefix tanuki-rush run test:touch`, `test:audio`, `test:gameover` and `test:storage` locally. These checks do not replace a physical Android playthrough. A normal branch push produces an Actions artifact; a commit containing `[release-preview]` also publishes a uniquely tagged **pre-release** with its SHA-256 checksum.
 
 ### Why the app runs a loopback server
 

@@ -5,5 +5,8 @@ export default defineConfig({
   base: './',
   // Permit the sandbox's HTTPS preview hostname while keeping Vite's host check.
   server: { host: '0.0.0.0', port: 5173, allowedHosts: ['.e2b.app'] },
+  // `vite preview` serves the production bundle (what the APK ships) and needs
+  // the same host allowance, otherwise the preview proxy is rejected.
+  preview: { host: '0.0.0.0', port: 4173, allowedHosts: ['.e2b.app'] },
   build: { target: 'es2022', chunkSizeWarningLimit: 2000 },
 });
