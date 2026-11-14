@@ -31,7 +31,32 @@ for _ in $(seq 1 60); do
   sleep 5
 done
 booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
-[ "$booted" = "1" ] || fail emulator "sys.boot_completed never became 1"
+[ "$booted" = "1" ] || fail emulator "sys.boot_completed never became 1 after 300s"
+
+# sys.boot_completed=1 comes BEFORE the package manager is reachable. Run
+# 43547900681 proved it: a cold API 34 emulator answered
+# "adb: failed to install ...: cmd: Can't find service: package" a full minute
+# after reporting boot complete, and three 20 s retries were not enough. The old
+# script ran `adb install` under `set -e` with no annotation at all, which is
+# exactly how the API 37 legs of runs 42977875935 and 43540123437 died - they
+# were never evidence of a missing Android 17 image. Wait for the service itself.
+for _ in $(seq 1 90); do
+  case "$(adb shell service check package 2>/dev/null)" in *found*) break ;; esac
+  sleep 5
+done
+case "$(adb shell service check package 2>/dev/null)" in
+  *found*) echo "Package service is up." ;;
+  *) fail emulator "the package service never came up, so adb install cannot work" ;;
+esac
+
+# Boot animation still running means first-boot dexopt is in progress and the
+# first frame would be slow for reasons that have nothing to do with the app.
+for _ in $(seq 1 60); do
+  [ "$(adb shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r')" = "stopped" ] && break
+  sleep 5
+done
+echo "bootanim: $(adb shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r')"
+
 sdk="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
 release="$(adb shell getprop ro.build.version.release | tr -d '\r')"
 echo "Emulator ready: Android $release (API $sdk)"
@@ -101,15 +126,25 @@ adb shell ls -l /data/anr 2>/dev/null || true
 adb exec-out screencap -p > boot-failure.png || true
 adb logcat -d > boot-failure-logcat.txt || true
 
-if grep -q 'native-watchdog: armed' <<<"$log" && ! grep -q 'native-watchdog: first frame painted' <<<"$log"; then
-  echo "VERDICT: the activity ran and the native watchdog was armed, but Flutter never painted."
-  echo "That is a Flutter engine/renderer problem on Android $release (API $sdk), not Dart startup code."
-  grep -q 'native-watchdog: no first frame' <<<"$log" \
-    && echo "The user-facing error screen was shown, so this is no longer a silent blue screen."
-elif ! grep -q 'native-watchdog' <<<"$log"; then
-  echo "VERDICT: no watchdog line at all - the process probably never started or crashed immediately."
-  echo "Look for AndroidRuntime/libc lines above."
+# The verdict has to travel inside the ::error:: annotation: Actions log and
+# artifact storage is unreachable from some sandboxes, while check-run
+# annotations are readable through api.github.com. Everything echoed above is
+# for a human reading the run in a browser; this is for the next agent.
+if grep -q 'native-watchdog: no first frame' <<<"$log"; then
+  verdict="watchdog fired - activity and Android UI thread alive, Flutter never painted"
+elif grep -q 'native-watchdog: armed' <<<"$log"; then
+  verdict="watchdog armed but never fired - no frame and no timeout line"
+elif grep -q 'native-watchdog' <<<"$log"; then
+  verdict="watchdog ran but found no Flutter engine to watch"
+else
+  verdict="no watchdog line - process never started or died before onCreate"
 fi
+if adb shell ps -A 2>/dev/null | grep -q "$package"; then
+  proc="process up"
+else
+  proc="process NOT running"
+fi
+echo "VERDICT: $verdict ($proc)"
 
 tail -n 50 boot-failure-logcat.txt || true
-fail "first frame" "no first Flutter frame within ${frame_wait_seconds}s on Android $release (API $sdk)"
+fail "first frame" "no first Flutter frame in ${frame_wait_seconds}s on Android $release (API $sdk); $proc; $verdict"

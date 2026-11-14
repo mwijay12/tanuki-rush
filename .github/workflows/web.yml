@@ -63,5 +63,21 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # Pages has to be switched on by a human once (Settings -> Pages -> Source:
+      # GitHub Actions); a CI token gets 403 on POST /repos/{owner}/{repo}/pages.
+      # Until then deploy-pages can only fail, so say what is missing instead of
+      # turning every push to main red.
+      - name: Check that GitHub Pages is enabled
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/pages" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not enabled for this repository. Turn it on in Settings -> Pages -> Source: GitHub Actions, then re-run this workflow to publish."
+          fi
       - id: deployment
+        if: steps.pages.outputs.enabled == 'true'
         uses: actions/deploy-pages@v5

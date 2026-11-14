@@ -152,28 +152,38 @@ jobs:
             --title "Tanuki Rush — Android preview $version (${GITHUB_SHA:0:7})" \
             --notes-file docs/PREVIEW_RELEASE.md
 
-  # Diagnostic coverage for the field report (Pixel 8 Pro, Android 17): with the
-  # 1.0.5 APK the boot test failed on API 36 ("no first frame within 3 minutes")
-  # while API 34 passed. With 1.0.6 the API 36 leg passed once. One sample cannot
-  # separate "fixed" from "flaky", so the newest working image is booted three
-  # times per push. Each leg is independent (fail-fast: false) so one bad image
-  # never hides the others. Trim this matrix once the hang is resolved.
+  # Diagnostic coverage for the field report (Pixel 8 Pro, Android 17). The hang
+  # is intermittent rather than OS-specific: API 34 passed three times and then
+  # reported "no first Flutter frame in 180s" (run 43547895180), while API 36
+  # failed once on 1.0.5 and passed four times on 1.0.6. So this matrix samples
+  # the newest images instead of assuming one of them is the culprit, and the
+  # annotation carries the watchdog verdict. Each leg is independent
+  # (fail-fast: false) so one bad image never hides the others. Trim this once
+  # the hang is closed.
   #
-  # API 37 is deliberately absent. In runs 42977875935 and 43540123437 the API 37
-  # leg failed inside the emulator action *before* the boot script ran — unlike
-  # API 36, it produced no `::error::` annotation from ci_boot_test.sh, which
-  # means no usable Android 17 image exists on these runners. A leg that can only
-  # ever fail on infrastructure hides the real signal. See docs/HANDOFF.md.
+  # API 37 is back. It was removed on the inference that no Android 17 image
+  # exists on these runners, because both of its legs failed with no annotation
+  # from the boot script. That inference was wrong: the script then ran
+  # `adb install` under `set -e`, and run 43547900681 shows what that looks like
+  # from the readable side - "Can't find service: package" on a cold emulator.
+  # The script now waits for the package service and names its phase, so an
+  # API 37 failure will say whether Android 17 is unavailable, unbootable, or
+  # genuinely hanging before its first frame.
   boot-newer-apis:
     name: Boot test (API ${{ matrix.api }}, run ${{ matrix.attempt }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     needs: build
     strategy:
       fail-fast: false
       matrix:
-        api: [36]
-        attempt: [1, 2, 3]
+        include:
+          - api: 36
+            attempt: 1
+          - api: 36
+            attempt: 2
+          - api: 37
+            attempt: 1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -262,7 +272,7 @@ jobs:
   boot-impeller-off:
     name: Impeller-off boot test (API ${{ matrix.api }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     needs: build-impeller-off
     strategy:
       fail-fast: false
