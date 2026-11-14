@@ -42,10 +42,33 @@ ls -lh "$apk"
 
 phase "install"
 adb logcat -c
-adb install -r "$apk" || fail install "adb install -r $apk"
+# `sys.boot_completed` can precede a usable package manager, and a fresh emulator
+# occasionally refuses the first install. Retry, and put adb's own words into the
+# annotation: "failed (install)" without the reason is not actionable, and this
+# phase is not the bug being hunted.
+install_output=""
+installed=false
+for attempt in 1 2 3; do
+  if install_output="$(adb install -r "$apk" 2>&1)"; then
+    installed=true
+    break
+  fi
+  echo "install attempt $attempt failed:"
+  printf '%s\n' "$install_output"
+  sleep 20
+done
+if [ "$installed" != true ]; then
+  fail install "$(printf '%s' "$install_output" | tr '\n' ' ' | tr -s ' ' | tail -c 300)"
+fi
 
 phase "launch"
-adb shell am start -n "$package/.MainActivity" || fail launch "am start $package/.MainActivity"
+launch_output="$(adb shell am start -n "$package/.MainActivity" 2>&1)" || fail launch "$launch_output"
+printf '%s\n' "$launch_output"
+# `am start` can exit 0 while reporting a failure, which would otherwise be
+# misread later as "the app started but never painted".
+case "$launch_output" in
+  *Error*|*Exception*) fail launch "$launch_output" ;;
+esac
 
 phase "first frame"
 # The app prints [tanuki] first-frame-painted after its first frame, and
