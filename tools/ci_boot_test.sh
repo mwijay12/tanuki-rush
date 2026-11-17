@@ -46,14 +46,21 @@ t_boot="$(( $(date +%s) - t_start ))"
 # script ran `adb install` under `set -e` with no annotation at all, which is
 # exactly how the API 37 legs of runs 42977875935 and 43540123437 died - they
 # were never evidence of a missing Android 17 image. Wait for the service itself.
+# `service check package` is NOT a sufficient probe, and run 44041887463 proved
+# it: this script waited for the service to report "found" and `adb install` then
+# failed anyway with "cmd: Can't find service: package". Registration and
+# answering calls are different moments. Probe the code path the install itself
+# uses, so the wait ends only when `cmd package` really replies.
 for _ in $(seq 1 90); do
-  case "$(adb shell service check package 2>/dev/null)" in *found*) break ;; esac
+  if adb shell cmd package list packages -3 >/dev/null 2>&1; then break; fi
   sleep 5
 done
-case "$(adb shell service check package 2>/dev/null)" in
-  *found*) t_pkg="$(( $(date +%s) - t_start ))"; echo "Package service is up after ${t_pkg}s." ;;
-  *) fail emulator "the package service never came up, so adb install cannot work" ;;
-esac
+if adb shell cmd package list packages -3 >/dev/null 2>&1; then
+  t_pkg="$(( $(date +%s) - t_start ))"
+  echo "cmd package answers after ${t_pkg}s (service check: $(adb shell service check package 2>/dev/null | tr -d '\r'))"
+else
+  fail emulator "cmd package never answered after 450s, so adb install cannot work"
+fi
 
 # Boot animation still running means first-boot dexopt is in progress and the
 # first frame would be slow for reasons that have nothing to do with the app.
