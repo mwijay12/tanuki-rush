@@ -468,6 +468,8 @@ if ($startResult -match "Error|Exception") {
 Write-Section "screen sampling"
 
 $lastSummary = $null
+$maxDistinct = -1
+$sawContent = $false
 $captureAt = @(@(3, 8, 13, 20, 30, 45, 60, 90) | Where-Object { $_ -le $WaitSeconds })
 if ($captureAt -notcontains $WaitSeconds) { $captureAt += $WaitSeconds }
 # A real clock: a screenshot plus two dumpsys calls take a second or two each, so
@@ -500,6 +502,10 @@ foreach ($mark in $captureAt) {
         "  centre=#" + $summary.Centre + "  distinct sampled colours=" + $summary.Distinct)
     foreach ($entry in $summary.Top) { Write-Line ("t=" + $stamp + "s    " + $entry) }
     if (-not $summary.Ok) { Write-Line ("t=" + $stamp + "s  screenshot FAILED: " + $summary.Error) }
+    if ($summary.Ok) {
+        if ($summary.Distinct -gt $maxDistinct) { $maxDistinct = $summary.Distinct }
+        if ($summary.Distinct -gt 2) { $sawContent = $true }
+    }
     $lastSummary = $summary
 }
 
@@ -521,6 +527,26 @@ Write-Line ("full logcat saved: " + $logPath + "  (" + $rawLog.Length + " chars)
 
 $logLines = $rawLog -split "`n"
 
+# A phone's logcat is full of OTHER apps doing the same things this script looks
+# for. The first real run of it matched a WebViewFactory line from an unrelated
+# app (pid 12115, not ours) and reported "WebView first-run work seen: True" for
+# a process that had nothing to do with the game - a false lead, and exactly the
+# kind this diagnostic exists to prevent. Scope the verdict to our own pid and
+# label every quoted line so a human can see the difference too.
+$appPids = @((((Invoke-Adb @('shell', ('pidof ' + $script:Package))) -replace "`r", "") -split "\s+") |
+    Where-Object { $_ -match "^\d+$" })
+$pidPattern = $null
+if ($appPids.Count -eq 0) {
+    Write-Line "app pid: NOT RUNNING when logcat was captured, so lines cannot be attributed"
+    $script:OurLines = $logLines
+}
+else {
+    Write-Line ("app pid(s): " + ($appPids -join ", "))
+    $pidPattern = '\(' + ($appPids -join '|') + '\)'
+    $script:OurLines = @($logLines | Where-Object { $_ -match $pidPattern })
+    Write-Line ("logcat lines from our process: " + $script:OurLines.Count + " of " + $logLines.Count)
+}
+
 # Everything the app itself writes, plus the subsystems that can stall a start.
 $patterns = @(
     'TanukiBoot', 'native-watchdog', '\[tanuki\]', '\[gate\]', '\[web-asset-server\]',
@@ -535,15 +561,17 @@ $interesting = @($logLines | Where-Object {
         foreach ($pattern in $patterns) { if ($line -match $pattern) { $hit = $true; break } }
         $hit
     })
-Write-Line ("matching lines: " + $interesting.Count)
+Write-Line ("matching lines: " + $interesting.Count + "  ([ours] = this app's pid)")
 foreach ($line in ($interesting | Select-Object -Last 90)) {
     $text = $line.Trim()
-    Write-Line ("  | " + $text)
+    $who = "other"
+    if ($pidPattern -and $text -match $pidPattern) { $who = "ours " }
+    Write-Line ("  | [" + $who + "] " + $text)
 }
 
 function Test-Log {
     param([string]$Pattern)
-    return [bool](@($logLines | Where-Object { $_ -match $Pattern }).Count -gt 0)
+    return [bool](@($script:OurLines | Where-Object { $_ -match $Pattern }).Count -gt 0)
 }
 
 # ---------------------------------------------------------------------------
@@ -601,7 +629,7 @@ Write-Section "verdict"
 
 $firstFrame = Test-Log 'first-frame-painted'
 $armed = Test-Log 'native-watchdog: armed'
-$beats = @($logLines | Where-Object { $_ -match 'native-watchdog: heartbeat' }).Count
+$beats = @($script:OurLines | Where-Object { $_ -match 'native-watchdog: heartbeat' }).Count
 $gaveUp = Test-Log 'native-watchdog: no first frame'
 $paintedLate = Test-Log 'native-watchdog: first frame painted'
 $gateFailed = Test-Log '\[gate\] failed to start asset server'
@@ -621,7 +649,18 @@ Write-Line ("loopback server from PC: " + $serverState)
 Write-Line ""
 
 $flat = ($distinct -ge 0 -and $distinct -le 2)
-if ($colour -eq "BFE3FF") {
+Write-Line ("samples that contained something other than one flat colour: " + $sawContent + "  (max distinct: " + $maxDistinct + ")")
+if ($sawContent -and $flat) {
+    Write-Line "SEQUENCE: the screen had real content part-way through and then went flat. Something"
+    Write-Line "  painted and then stopped being presented - that is a compositing change, not a"
+    Write-Line "  startup that never happened."
+}
+if ($colour -eq "000000" -and $flat) {
+    Write-Line "READING: FLAT BLACK. hud.css sets 'html, body { background: #000 }', so black means the"
+    Write-Line "  WEB PAGE IS VISIBLE and only its canvas is not drawing. That is a WebGL/GPU problem"
+    Write-Line "  inside the page - the Flutter side and the platform view are both working."
+}
+elseif ($colour -eq "BFE3FF") {
     Write-Line "READING: PALE BLUE #BFE3FF = the WebGL clear colour. Flutter painted, the WebView"
     Write-Line "  loaded the page, and the 3D scene never rendered. This is NOT the pre-frame hang;"
     Write-Line "  it is a GPU/WebGL problem inside the WebView. The watchdog correctly stayed quiet."
@@ -653,10 +692,19 @@ elseif ($colour -eq "0A1A44" -and $flat -and -not $firstFrame) {
     }
 }
 elseif ($colour -eq "0A1A44" -and $firstFrame) {
-    Write-Line "READING: NAVY BUT FLUTTER DID PAINT. The Dart gate is up and something later is stuck:"
-    Write-Line "  the asset server, the WebView, or the game's own LOADING overlay (which prints the"
-    Write-Line "  word LOADING). Since the screen looks flat, the WebView most likely never drew."
+    Write-Line "READING: NAVY BUT FLUTTER DID PAINT. #0A1A44 is a Flutter/Android colour (Scaffold or"
+    Write-Line "  window background), and the web page's own background is BLACK, so this is NOT the"
+    Write-Line "  page showing through: the WebView's content is not reaching the display at all."
+    Write-Line "  The game can be running perfectly behind an invisible platform view."
+    Write-Line "  DECISIVE TEST, no PC needed - open this in Chrome ON THE PHONE while the app runs:"
+    Write-Line ("    http://127.0.0.1:" + $script:Port + "/index.html")
+    Write-Line "  If the game draws there, the GPU and the bundle are fine and the fault is the"
+    Write-Line "  WebView/Flutter composition (hybrid composition or the rasterizer). If it is black"
+    Write-Line "  there too, the canvas itself is failing on this GPU."
     if ($gateFailed) { Write-Line "  FOUND IT: the asset server failed to start (port 43853 already in use)." }
+    if ($serverState -match "HTTP 200") {
+        Write-Line "  The Dart asset server answered HTTP 200 from the PC, so the Dart side is healthy."
+    }
 }
 elseif ($distinct -gt 2) {
     Write-Line "READING: THE SCREEN IS NOT FLAT - there is content (text, a spinner, or a button)."

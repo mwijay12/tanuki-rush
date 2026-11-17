@@ -110,6 +110,24 @@ deadline=$(( $(date +%s) + frame_wait_seconds ))
 while [ "$(date +%s)" -lt "$deadline" ]; do
   if adb logcat -d | grep -q 'first-frame-painted'; then
     echo "PASSED: first Flutter frame painted on Android $release (API $sdk)."
+    # The 2026-11-17 field report proved that a first frame is not the same thing
+    # as a visible game: on the Pixel 8 Pro Flutter paints in ~1.1 s, the WebView
+    # loads and the game runs, yet the screen stays a flat navy because the
+    # platform view stops being presented. This check cannot gate on that (an
+    # emulator has no real GPU, so the WebGL canvas may legitimately stay empty),
+    # but a flat single-colour PNG compresses to a few kilobytes while a rendered
+    # screen needs hundreds, so the byte count is a free, dependency-less signal.
+    sleep 15
+    adb exec-out screencap -p > boot-pass.png 2>/dev/null || true
+    if [ -s boot-pass.png ]; then
+      png_bytes="$(wc -c < boot-pass.png)"
+      echo "boot-pass.png: ${png_bytes} bytes"
+      if [ "$png_bytes" -lt 51200 ]; then
+        echo "::notice::first frame painted but boot-pass.png is only ${png_bytes} bytes, which is what a flat single-colour screen compresses to - nothing beyond a solid colour was on screen 15s after the first frame"
+      else
+        echo "::notice::first frame painted and boot-pass.png is ${png_bytes} bytes, so the screen had real content 15s later"
+      fi
+    fi
     exit 0
   fi
   sleep 5
@@ -133,6 +151,15 @@ echo "--- ANR traces ---"
 adb shell ls -l /data/anr 2>/dev/null || true
 adb exec-out screencap -p > boot-failure.png || true
 adb logcat -d > boot-failure-logcat.txt || true
+if [ -s boot-failure.png ]; then
+  fail_png_bytes="$(wc -c < boot-failure.png)"
+  echo "boot-failure.png: ${fail_png_bytes} bytes"
+  if [ "$fail_png_bytes" -lt 51200 ]; then
+    echo "::notice::boot-failure.png is only ${fail_png_bytes} bytes - a flat single-colour screen, i.e. nothing was drawn at all"
+  else
+    echo "::notice::boot-failure.png is ${fail_png_bytes} bytes - the screen had content, so this is not an empty window background"
+  fi
+fi
 
 # The verdict has to travel inside the ::error:: annotation: Actions log and
 # artifact storage is unreachable from some sandboxes, while check-run

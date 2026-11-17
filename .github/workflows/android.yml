@@ -116,14 +116,15 @@ jobs:
           api-level: 34
           arch: x86_64
           script: tools/ci_boot_test.sh
-      - name: Upload boot failure diagnostics
-        if: always() && steps.boot-smoke.outcome == 'failure'
+      - name: Upload boot diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: boot-failure
+          name: boot-diagnostics
           path: |
             boot-failure.png
             boot-failure-logcat.txt
+            boot-pass.png
           if-no-files-found: ignore
           retention-days: 14
       - name: Test Android SQLite migrations, transactions and persistence
@@ -282,6 +283,109 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Two APKs the field report actually needs, built on ONE runner so they share a
+  # debug signing key and the phone can move between them without uninstalling
+  # (release builds here are signed with signingConfigs.debug, so debug and
+  # release from the same runner are mutually installable).
+  #
+  # Why these two: the 2026-11-17 diagnostic run on the reporting Pixel 8 Pro
+  # (Android 17, Mali-G715, WebView 157.0.8103.38) moved the bug. Flutter paints
+  # its first frame in ~1.1 s, the watchdog disarms itself, the loopback asset
+  # server answers HTTP 200 for index.html, the WebView loads the page (its
+  # .loading overlay was captured on screen at t=30s) and the game runs (pid 11905
+  # Chromium audio warnings). Yet by t=45s the screen is a single flat colour,
+  # #0A1A44 - which is Flutter's Scaffold / the Android window background, NOT the
+  # web page, because hud.css sets `html, body { background: #000 }`. So the game
+  # is alive behind a platform view that stopped reaching the display once the
+  # WebGL canvas became the only content.
+  #
+  # No emulator can test that: they have no Mali GPU and no API 37 image, and the
+  # CI boot test only checks for the first *Flutter* frame, which this device
+  # passes. The two candidates are the rasterizer and hybrid-composition platform
+  # views, so ship one APK per candidate:
+  #   arm64 release, Impeller OFF -> if the game appears, the rasterizer is it
+  #   arm64 debug,   Impeller ON  -> kDebugMode makes the WebView inspectable, so
+  #                                  chrome://inspect can read the console and the
+  #                                  canvas state on the real device
+  # The committed manifest is still never modified: the opt-out is injected into
+  # this ephemeral checkout and reverted in the same job, and the normal release
+  # APK built by `build` keeps Flutter's default rasterizer.
+  build-field-apks:
+    name: Build on-device diagnostic APKs (arm64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs: build
+    permissions:
+      contents: write # only used by the opt-in upload step below
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Install Android SDK components
+        run: tools/ci_run.sh sdkmanager 'platforms;android-34' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.3.13750724'
+      - name: Resolve Flutter packages
+        working-directory: mobile
+        run: ../tools/ci_run.sh flutter pub get
+      - name: Fetch verified Gradle distribution
+        run: tools/ci_run.sh tools/fetch_gradle_ci.sh
+      - name: Build arm64 debug APK with an inspectable WebView
+        working-directory: mobile
+        run: ../tools/ci_run.sh flutter build apk --debug --no-pub --target-platform android-arm64
+      - name: Inject the Impeller opt-out
+        run: tools/ci_run.sh python3 tools/patch_disable_impeller.py
+      - name: Build arm64 release APK with Impeller disabled
+        working-directory: mobile
+        run: ../tools/ci_run.sh flutter build apk --release --no-pub --target-platform android-arm64
+      - name: Confirm the opt-out reached the built manifest
+        run: |
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump xmltree \
+            --file AndroidManifest.xml mobile/build/app/outputs/flutter-apk/app-release.apk \
+            | grep -A2 -F 'io.flutter.embedding.android.EnableImpeller'
+      - name: Stage both APKs and restore the manifest
+        run: |
+          mkdir -p field
+          cp mobile/build/app/outputs/flutter-apk/app-debug.apk field/tanuki-rush-arm64-debug-inspectable.apk
+          cp mobile/build/app/outputs/flutter-apk/app-release.apk field/tanuki-rush-arm64-release-impeller-off.apk
+          # Prove the injection never escaped this job.
+          git checkout -- mobile/android/app/src/main/AndroidManifest.xml
+          git diff --exit-code -- mobile/android/app/src/main/AndroidManifest.xml
+          grep -c 'EnableImpeller' mobile/android/app/src/main/AndroidManifest.xml || echo "manifest clean: no EnableImpeller key"
+          sha256sum field/*.apk > field/SHA256SUMS-field.txt
+          ls -lh field
+      - uses: actions/upload-artifact@v4
+        with:
+          name: field-diagnostic-apks
+          path: field/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Attach both APKs to the requested pre-release
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[release-preview]')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="preview-${GITHUB_SHA:0:10}"
+          # The build job owns release creation; wait for it rather than racing it.
+          for _ in $(seq 1 40); do
+            gh release view "$tag" >/dev/null 2>&1 && break
+            sleep 15
+          done
+          gh release view "$tag" >/dev/null 2>&1 || { echo "::error::release $tag never appeared, so the field APKs were not attached"; exit 1; }
+          gh release upload "$tag" \
+            field/tanuki-rush-arm64-debug-inspectable.apk \
+            field/tanuki-rush-arm64-release-impeller-off.apk \
+            field/SHA256SUMS-field.txt --clobber
 
   boot-impeller-off:
     name: Impeller-off boot test (API ${{ matrix.api }})

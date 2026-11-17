@@ -22,6 +22,37 @@ Toleo la 1.0.4 na 1.0.5 lilikuwa na hitilafu: app ilikaa kwenye **skrini ya bluu
 
 Toleo la **1.0.6** linaongeza *watchdog* ya native: ikiwa hakuna fremu ndani ya sekunde 12, skrini itaonyesha maelezo — model ya simu, toleo la Android, API level na muda uliosubiriwa — pamoja na **Jaribu tena / Retry** na **Funga / Close**. Kwenye CI, emulator ya API 36 imepita mara nne mfululizo kwa 1.0.6, lakini kwa kuwa hitilafu ni ya mara kwa mara, kupita mara nne hakuthibitishi chochote — **hitilafu bado haijathibitishwa kutatuliwa**. Ukiona skrini hiyo, piga picha na uripoti maneno yaliyoandikwa; maelezo hayo ndiyo yanahitajika kutengeneza fix.
 
+### Ripoti ya kwanza kutoka simu (2026-11-17) — hitilafu si ile tuliyodhani
+
+Kipimo cha kwanza cha `field_diag.ps1` kwenye **Pixel 8 Pro, Android 17 (API 37)**, Mali-G715, WebView 157.0.8103.38, toleo 1.0.7+8, kilibadilisha utambuzi kabisa:
+
+- `am start -W` → `TotalTime: 1104`. `[tanuki] first-frame-painted` iko kwenye log. Watchdog iliandika `armed` kisha `first frame painted`. **Flutter inachora kwa sekunde ~1.1 — hakuna hang kabla ya fremu kwenye simu hii.** (Heartbeat 0 ni kawaida hapa: fremu ilifika kabla ya kipindi cha kwanza cha sekunde 5.)
+- Seva ya ndani ya app ilijibu **HTTP 200** (bayti 1584 za `index.html`) kupitia bandari 43853 → upande wa Dart ni mzima.
+- Skrini: bapa `#0A1A44` saa t=3/8/13/20, kisha **yenye maudhui** t=30 (rangi 13: `#0C1633` = `--hud-ink`, `#13192B`/`#121B34` = gradient ya `.loading` juu ya `og-image.jpg`, `#FFFFFF` 0.1% = maandishi "LOADING…"), kisha bapa `#0A1A44` tena t=45.
+- Mchezo **ulikuwa unaendelea** wakati hakuna kinachoonekana: `chromium(11905) SyncReader::Read timed out, audio glitch count=10…80` — pid 11905 ni app yetu.
+- Ufunguo: `hud.css` ina `html, body { background: #000 }`. Kwa hiyo skrini ya **bluu ya giza** si ukurasa wa web — ni rangi ya Flutter (`GameColors.night`) au ya window ya Android. **Maudhui ya WebView yameacha kufika kwenye skrini.**
+
+Kwa kifupi: WebView ilikuwa inaonekana t=30 (overlay yake ya "LOADING…"), na baada ya `doneLoading()` kuiondoa — WebGL canvas ikabaki pekee — platform view ilikoma kuonyeshwa. Washukiwa sasa ni **Impeller** (rasterizer ya Flutter) na **hybrid composition** ya platform view kwenye Android 17 / Mali-G715.
+
+Nadharia mbili za awali **zimekufa**: `dex2oat`/WebView ya mara ya kwanza (mistari ile ilikuwa ya app nyingine, pid 12115 — Snaptube; script sasa inachuja kwa pid yetu), na ANR (faili za `/data/anr` ni za 2026-11-14).
+
+### Majaribio mawili ya simu (APK zilizochapishwa pamoja na preview)
+
+Kila preview ina APK tatu. Mbili za ziwa ni za uchunguzi, zinatoka kwenye runner moja kwa hiyo **zina signature moja** — unaweza kubadilishana bila ku-uninstall:
+
+| Faili | Madhumuni |
+|---|---|
+| `tanuki-rush-android-preview.apk` | toleo la kawaida (Impeller imezimwa HAPANA) |
+| `tanuki-rush-arm64-release-impeller-off.apk` | **Impeller imezimwa.** Mchezo ukionekana → rasterizer ndiyo hatia. |
+| `tanuki-rush-arm64-debug-inspectable.apk` | **debug build.** Fungua `chrome://inspect` kwenye PC → unaweza kusoma console ya WebView na kuangalia hali ya canvas moja kwa moja. |
+
+Kumbuka: kuhamia kutoka preview ya zamani kwenda hizi kunahitaji **uninstall moja** (signature ya runner tofauti), na hiyo inafuta progress. Kwa kuwa mchezo haujafunguka kamwe kwenye simu hii, hakuna cha kupoteza.
+
+**Jaribio la bila APK mpya (sekunde 30):** wakati app inaendelea (hata kwenye skrini ya bluu), fungua **Chrome ya simu** na elekea `http://127.0.0.1:43853/index.html`. Seva ile ile inayoisha ndani ya app inahudumia mchezo.
+
+- Mchezo ukicheza Chrome ya simu → GPU na bundle ni safi; hatia ni **WebView/Flutter composition**.
+- Chrome ya simu pia ikawa bluu/weusi → tatizo ni **WebGL/GPU** ya simu yenyewe.
+
 ### Kupima skrini ya bluu kwenye simu yako (Windows + PowerShell)
 
 Kuna script moja inayokusanya ushahidi wote kwa mara moja: `tools/field_diag.ps1`. Inahitaji kompyuta ya Windows, kebo ya USB, na simu iliyo katika developer mode.
