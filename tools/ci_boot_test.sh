@@ -25,6 +25,11 @@ fail() {
 }
 
 phase "emulator boot"
+# Readiness timings are recorded because "no first frame in 180s" means something
+# different on an emulator that needed 90s to reach a usable package manager than
+# on one that was ready in 15s. Without them a starved runner is indistinguishable
+# from a hung app, which is exactly the ambiguity run 43591614157 left behind.
+t_start="$(date +%s)"
 adb wait-for-device || fail emulator "adb never saw a device"
 for _ in $(seq 1 60); do
   [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
@@ -32,6 +37,7 @@ for _ in $(seq 1 60); do
 done
 booted="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
 [ "$booted" = "1" ] || fail emulator "sys.boot_completed never became 1 after 300s"
+t_boot="$(( $(date +%s) - t_start ))"
 
 # sys.boot_completed=1 comes BEFORE the package manager is reachable. Run
 # 43547900681 proved it: a cold API 34 emulator answered
@@ -45,7 +51,7 @@ for _ in $(seq 1 90); do
   sleep 5
 done
 case "$(adb shell service check package 2>/dev/null)" in
-  *found*) echo "Package service is up." ;;
+  *found*) t_pkg="$(( $(date +%s) - t_start ))"; echo "Package service is up after ${t_pkg}s." ;;
   *) fail emulator "the package service never came up, so adb install cannot work" ;;
 esac
 
@@ -55,7 +61,9 @@ for _ in $(seq 1 60); do
   [ "$(adb shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r')" = "stopped" ] && break
   sleep 5
 done
+t_anim="$(( $(date +%s) - t_start ))"
 echo "bootanim: $(adb shell getprop init.svc.bootanim 2>/dev/null | tr -d '\r')"
+echo "Readiness: boot_completed=${t_boot}s package_service=${t_pkg}s bootanim_done=${t_anim}s"
 
 sdk="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
 release="$(adb shell getprop ro.build.version.release | tr -d '\r')"
@@ -130,10 +138,20 @@ adb logcat -d > boot-failure-logcat.txt || true
 # artifact storage is unreachable from some sandboxes, while check-run
 # annotations are readable through api.github.com. Everything echoed above is
 # for a human reading the run in a browser; this is for the next agent.
+# The heartbeat is the part that actually settles the argument. "Armed but never
+# fired" alone is ambiguous: it happens both when the Android UI thread is blocked
+# inside engine/plugin init (no Dart, dead back button - the real field bug) and
+# when the runner is too starved to schedule anything. A heartbeat every 5s while
+# waiting separates them, so count them and quote the last one.
+beats="$(grep -c 'native-watchdog: heartbeat' <<<"$log" || true)"
+beats="${beats:-0}"
+last_beat="$(grep 'native-watchdog: heartbeat' <<<"$log" | tail -n 1 | sed 's/^.*native-watchdog: //' || true)"
 if grep -q 'native-watchdog: no first frame' <<<"$log"; then
-  verdict="watchdog fired - activity and Android UI thread alive, Flutter never painted"
+  verdict="watchdog fired - activity and Android UI thread alive, Flutter never painted ($beats heartbeats)"
+elif grep -q 'native-watchdog: armed' <<<"$log" && [ "$beats" -gt 0 ]; then
+  verdict="watchdog armed, heartbeat kept beating $beats times (last: ${last_beat:-none}) - UI thread ALIVE, engine never painted"
 elif grep -q 'native-watchdog: armed' <<<"$log"; then
-  verdict="watchdog armed but never fired - no frame and no timeout line"
+  verdict="watchdog armed, NO heartbeat at all - UI thread STOPPED running after onCreate (blocked, not merely slow)"
 elif grep -q 'native-watchdog' <<<"$log"; then
   verdict="watchdog ran but found no Flutter engine to watch"
 else
@@ -145,6 +163,7 @@ else
   proc="process NOT running"
 fi
 echo "VERDICT: $verdict ($proc)"
+echo "READINESS: boot=${t_boot}s package=${t_pkg}s bootanim=${t_anim}s"
 
 tail -n 50 boot-failure-logcat.txt || true
-fail "first frame" "no first Flutter frame in ${frame_wait_seconds}s on Android $release (API $sdk); $proc; $verdict"
+fail "first frame" "no first Flutter frame in ${frame_wait_seconds}s on Android $release (API $sdk); $proc; emulator readiness boot=${t_boot}s package=${t_pkg}s bootanim=${t_anim}s; $verdict"

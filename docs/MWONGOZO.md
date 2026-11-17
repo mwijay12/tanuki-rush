@@ -22,6 +22,49 @@ Toleo la 1.0.4 na 1.0.5 lilikuwa na hitilafu: app ilikaa kwenye **skrini ya bluu
 
 Toleo la **1.0.6** linaongeza *watchdog* ya native: ikiwa hakuna fremu ndani ya sekunde 12, skrini itaonyesha maelezo — model ya simu, toleo la Android, API level na muda uliosubiriwa — pamoja na **Jaribu tena / Retry** na **Funga / Close**. Kwenye CI, emulator ya API 36 imepita mara nne mfululizo kwa 1.0.6, lakini kwa kuwa hitilafu ni ya mara kwa mara, kupita mara nne hakuthibitishi chochote — **hitilafu bado haijathibitishwa kutatuliwa**. Ukiona skrini hiyo, piga picha na uripoti maneno yaliyoandikwa; maelezo hayo ndiyo yanahitajika kutengeneza fix.
 
+### Kupima skrini ya bluu kwenye simu yako (Windows + PowerShell)
+
+Kuna script moja inayokusanya ushahidi wote kwa mara moja: `tools/field_diag.ps1`. Inahitaji kompyuta ya Windows, kebo ya USB, na simu iliyo katika developer mode.
+
+**1. Weka adb kwenye kompyuta**
+
+- Pakua `https://dl.google.com/android/repository/platform-tools-latest-windows.zip` (faili rasmi ya Google).
+- Toa (extract) kwenye `C:\platform-tools`. Hakuna installer inayohitajika.
+
+**2. Washa USB debugging kwenye simu**
+
+- Settings → About phone → gusa **Build number** mara 7 (hufungua Developer options).
+- Settings → System → Developer options → **USB debugging** = ON.
+- Unganisha kebo; simu itauliza **"Allow USB debugging?"** → gusa **ALLOW** (tia alama ya "always allow from this computer").
+
+**3. Pakua APK mpya** kutoka `https://github.com/mwijay12/tanuki-rush/releases/latest` — faili ni `tanuki-rush-android-preview.apk`.
+
+**4. Endesha script** kutoka kwenye folder ya repo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\field_diag.ps1 -Adb C:\platform-tools\adb.exe -Apk C:\Users\<jina lako>\Downloads\tanuki-rush-android-preview.apk
+```
+
+Script itasoma toleo lililosakinishwa, kufunga app na kuiwasha upya, kupiga picha za skrini kila sekunde chache, kusoma logcat, kuangalia historia ya ANR, na mwisho kufungua mchezo kutoka kwenye simu yenyewe kupitia bandari 43853 ili kujua ikiwa upande wa Dart uko hai. **Haifuti data yako na hai-uninstall chochote** isipokuwa ukiongeza `-ForceUninstall` mwenyewe.
+
+**5. Tuma matokeo:** `tanuki-report.txt` (nakili maudhui yote hapa chat), `tanuki-screen.png` (ambatanisha picha), na `tanuki-logcat.txt` ikiwa itaombwa.
+
+**Jinsi ya kusoma rangi ya skrini.** Script inachapisha rangi halisi za pixel, si maelezo ya macho:
+
+| Rangi iliyochapishwa | Maana |
+|---|---|
+| `#0A1A44` (bluu ya giza), skrini bapa bila kitu | App imesimama **kabla ya Flutter kuchora** — hii ndiyo hitilafu inayoripotiwa. Soma mstari wa `SUB-VERDICT`. |
+| `#0A1A44` lakini kuna spinner, maandiko au kitufe | Njia ya makosa inafanya kazi; picha pekee inatosha kutambua tatizo. |
+| `#BFE3FF` (bluu nyepesi), skrini bapa | Flutter na WebView wako hai, lakini **WebGL haikuchora scene**. Hii ni hitilafu tofauti kabisa (GPU ndani ya WebView), na watchdog hukaa kimya kwa sababu Flutter inachora kawaida. |
+
+Mstari muhimu zaidi kwenye ripoti ni `SUB-VERDICT`:
+
+- **"UI thread STOPPED RUNNING"** → kitu cha native kimezuia main thread baada ya `onCreate` (injini ya Flutter, usajili wa plugin, au WebView inayojiandaa kwa mara ya kwanza). Hii inaendana na kitufe cha kurudi kuwa kimekufa.
+- **"UI thread is ALIVE"** (heartbeat zinaendelea) → Android iko sawa, injini ya Flutter inashindwa kuchora; tatizo ni kwenye rasterizer/GPU.
+- **"the app is NOT installed"** → sakinisha APK kwanza, kisha endesha script tena.
+
+Toleo la **1.0.7** linaongeza *heartbeat* kwenye log kila sekunde 5 wakati app inasubiri fremu. Ndicho kinachotofautisha visa hivyo viwili hapo juu, kwa hiyo tumia APK ya 1.0.7 (si 1.0.6) kwa vipimo hivi.
+
 Kwa sasa, njia salama zaidi ya kucheza ni **toleo la browser** kwenye Chrome ya simu — hakuna Flutter shell, hakuna skrini ya bluu. Chanzo kiko `tanuki-rush/`; kijengee kwa `npm run build` na utumie `npm run preview`. Workflow ya `.github/workflows/web.yml` itachapisha tovuti kwenye GitHub Pages (`https://mwijay12.github.io/tanuki-rush/`) mara tu Pages itakapowashwa kwenye Settings → Pages → Source: **GitHub Actions**; ni hatua moja ya kibinadamu kwa sababu token ya CI haina ruhusa ya `pages: write`.
 
 Kwa kujenga mwenyewe unahitaji Flutter 3.47.9, Java 17, Android SDK, Node 22 na Python 3:

@@ -95,4 +95,24 @@ class BootWatchdogTest {
         assertEquals(500L, watchdog.pollDelayMs())
         assertEquals(250L, BootWatchdog(pollMs = 250L).pollDelayMs())
     }
+
+    @Test
+    fun theHeartbeatLandsExactlyOneIntervalInAndRepeats() {
+        assertFalse(BootWatchdog.isHeartbeatPoll(0))
+        assertFalse(BootWatchdog.isHeartbeatPoll(1))
+        assertFalse(BootWatchdog.isHeartbeatPoll(9))
+        assertTrue(BootWatchdog.isHeartbeatPoll(10))
+        assertFalse(BootWatchdog.isHeartbeatPoll(11))
+        assertTrue(BootWatchdog.isHeartbeatPoll(20))
+        // 10 polls x 500 ms = one line every 5 s, which is the cadence the
+        // CI verdict and the field diagnostic both depend on.
+        assertEquals(10L, BootWatchdog.HEARTBEAT_POLLS.toLong())
+        assertEquals(5_000L, BootWatchdog.HEARTBEAT_POLLS * watchdog.pollDelayMs())
+    }
+
+    @Test
+    fun aNonPositivePollIndexNeverLogsAHeartbeat() {
+        assertFalse(BootWatchdog.isHeartbeatPoll(-1))
+        assertFalse(BootWatchdog.isHeartbeatPoll(-10))
+    }
 }

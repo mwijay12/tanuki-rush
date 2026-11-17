@@ -47,7 +47,30 @@ class BootWatchdog(
 
         const val DEFAULT_POLL_MS = 500L
 
+        /**
+         * Polls between heartbeat log lines: 10 x 500 ms = one line every 5 s.
+         *
+         * Why a heartbeat at all: CI reported "watchdog armed but never fired"
+         * over a window that never painted, and that phrasing is ambiguous.
+         * Either the Android UI thread stopped running after `onCreate` (blocked
+         * inside engine or plugin init — the back button is dead and no Dart ever
+         * runs), or the machine was so starved that nothing got scheduled. Those
+         * need completely different fixes, and one log line every 5 s is what
+         * tells them apart: heartbeats that keep arriving mean the UI thread is
+         * alive and the engine genuinely is not painting.
+         */
+        const val HEARTBEAT_POLLS = 10
+
         const val LOG_TAG = "TanukiBoot"
+
+        /**
+         * Whether poll number [pollIndex] (1-based) should log a heartbeat.
+         *
+         * Pure so the cadence is unit-testable: a non-positive index never
+         * logs, and the first heartbeat lands exactly one interval in.
+         */
+        fun isHeartbeatPoll(pollIndex: Int): Boolean =
+            pollIndex > 0 && pollIndex % HEARTBEAT_POLLS == 0
 
         /**
          * Text shown over a window that never received a Flutter frame.

@@ -34,6 +34,7 @@ class MainActivity : FlutterActivity() {
     private var engine: FlutterEngine? = null
     private val watchdog = BootWatchdog()
     private var watchdogPoll: Runnable? = null
+    private var watchdogPolls = 0
     private var bootErrorView: View? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -113,6 +114,7 @@ class MainActivity : FlutterActivity() {
         }
         Log.i(BootWatchdog.LOG_TAG, "native-watchdog: armed")
         watchdog.start(SystemClock.uptimeMillis())
+        watchdogPolls = 0
         val poll = object : Runnable {
             override fun run() {
                 val displayingUi = try {
@@ -123,6 +125,16 @@ class MainActivity : FlutterActivity() {
                     return
                 }
                 val now = SystemClock.uptimeMillis()
+                watchdogPolls += 1
+                // One line every 5 s while no frame has arrived. Its absence is
+                // the finding: it means this runnable stopped being scheduled,
+                // i.e. the Android UI thread is blocked, not merely slow.
+                if (BootWatchdog.isHeartbeatPoll(watchdogPolls)) {
+                    Log.i(
+                        BootWatchdog.LOG_TAG,
+                        "native-watchdog: heartbeat $watchdogPolls at ${watchdog.waitedMs(now)}ms, ui=$displayingUi",
+                    )
+                }
                 when (watchdog.onPoll(now, displayingUi)) {
                     WatchdogAction.SHOW_ERROR -> {
                         Log.e(
