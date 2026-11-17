@@ -121,11 +121,19 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     adb exec-out screencap -p > boot-pass.png 2>/dev/null || true
     if [ -s boot-pass.png ]; then
       png_bytes="$(wc -c < boot-pass.png)"
+      # Which colour, not merely whether it is flat: #0A1A44 is a Flutter or
+      # Android surface, #000000 is the web page's own background with a dead
+      # canvas, #BFE3FF is the WebGL clear colour. Decoded with the standard
+      # library only (tools/png_summary.py), because a smoke test should not need
+      # Pillow and it must never be able to fail the build.
+      colour="$(python3 tools/png_summary.py boot-pass.png 2>/dev/null | head -n 1)"
+      [ -n "$colour" ] || colour="colour summary unavailable"
       echo "boot-pass.png: ${png_bytes} bytes"
+      python3 tools/png_summary.py boot-pass.png 2>/dev/null || true
       if [ "$png_bytes" -lt 51200 ]; then
-        echo "::notice::first frame painted but boot-pass.png is only ${png_bytes} bytes, which is what a flat single-colour screen compresses to - nothing beyond a solid colour was on screen 15s after the first frame"
+        echo "::notice::first frame painted but 15s later the screen is a single flat colour (${png_bytes} byte PNG); ${colour}"
       else
-        echo "::notice::first frame painted and boot-pass.png is ${png_bytes} bytes, so the screen had real content 15s later"
+        echo "::notice::first frame painted and 15s later the screen had real content (${png_bytes} byte PNG); ${colour}"
       fi
     fi
     exit 0
@@ -153,11 +161,14 @@ adb exec-out screencap -p > boot-failure.png || true
 adb logcat -d > boot-failure-logcat.txt || true
 if [ -s boot-failure.png ]; then
   fail_png_bytes="$(wc -c < boot-failure.png)"
+  fail_colour="$(python3 tools/png_summary.py boot-failure.png 2>/dev/null | head -n 1)"
+  [ -n "$fail_colour" ] || fail_colour="colour summary unavailable"
   echo "boot-failure.png: ${fail_png_bytes} bytes"
+  python3 tools/png_summary.py boot-failure.png 2>/dev/null || true
   if [ "$fail_png_bytes" -lt 51200 ]; then
-    echo "::notice::boot-failure.png is only ${fail_png_bytes} bytes - a flat single-colour screen, i.e. nothing was drawn at all"
+    echo "::notice::boot-failure.png is a flat single-colour screen (${fail_png_bytes} bytes); ${fail_colour}"
   else
-    echo "::notice::boot-failure.png is ${fail_png_bytes} bytes - the screen had content, so this is not an empty window background"
+    echo "::notice::boot-failure.png had content, so this is not an empty window background (${fail_png_bytes} bytes); ${fail_colour}"
   fi
 fi
 
