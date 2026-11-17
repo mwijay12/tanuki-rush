@@ -68,6 +68,8 @@ param(
 # on that would abort the diagnostic halfway, so errors are handled explicitly.
 $ErrorActionPreference = 'Continue'
 
+if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
+
 $script:Package = 'com.tanukirush.tanuki_rush'
 $script:Activity = '.MainActivity'
 $script:Port = 43853
@@ -85,6 +87,23 @@ function Write-Section {
     param([string]$Title)
     Write-Line ""
     Write-Line ("=== " + $Title + " ===")
+}
+
+# Every early bail-out still writes the report: the person running this is on a
+# phone that does not work, and "it stopped with a message on the console" is not
+# something they can send back. A partial report is always better than none.
+function Stop-Diagnostic {
+    param([int]$Code)
+    $path = Join-Path $OutDir "tanuki-report.txt"
+    try {
+        Set-Content -Path $path -Value ($script:Report -join "`r`n") -Encoding UTF8
+        Write-Host ""
+        Write-Host ("Stopped early (code " + $Code + "). Partial report: " + $path) -ForegroundColor Yellow
+    }
+    catch {
+        Write-Host ("Could not write the partial report: " + $_.Exception.Message) -ForegroundColor Yellow
+    }
+    exit $Code
 }
 
 # Single place that runs adb, so the serial flag and stderr handling are uniform.
@@ -180,11 +199,76 @@ function Get-ScreenSummary {
 }
 
 # ---------------------------------------------------------------------------
-# 1. adb
+# 1. adb - found on this PC, or fetched automatically
 # ---------------------------------------------------------------------------
 Write-Section "adb"
 
+# Google publishes platform-tools as a plain zip with no installer, so a machine
+# that has never done any Android work can still run this diagnostic. Returns the
+# adb.exe path, or $null when every source failed, so the caller can print the
+# manual instructions instead of dying with a bare "not found".
+function Get-PlatformTools {
+    param([string]$TargetDir)
+
+    $zip = Join-Path $TargetDir "platform-tools.zip"
+    $adbExe = Join-Path (Join-Path $TargetDir "platform-tools") "adb.exe"
+    if (Test-Path $adbExe) { return $adbExe }
+
+    $urls = @(
+        "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
+        "https://dl.google.com/android/repository/platform-tools_r35.0.2-windows.zip"
+    )
+    $previousPreference = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+    try {
+        foreach ($url in $urls) {
+            Write-Line ("downloading: " + $url)
+            try {
+                Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip -TimeoutSec 300
+            }
+            catch {
+                Write-Line ("  download FAILED: " + $_.Exception.Message)
+                continue
+            }
+            $size = 0
+            if (Test-Path $zip) { $size = (Get-Item $zip).Length }
+            Write-Line ("  downloaded " + $size + " bytes")
+            if ($size -lt 1000000) {
+                Write-Line "  far too small for platform-tools - treating it as truncated and moving on"
+                continue
+            }
+            $unpacked = Join-Path $TargetDir "platform-tools"
+            if (Test-Path $unpacked) { Remove-Item -Recurse -Force $unpacked }
+            try {
+                Expand-Archive -Path $zip -DestinationPath $TargetDir -Force
+            }
+            catch {
+                Write-Line ("  Expand-Archive failed: " + $_.Exception.Message)
+                try {
+                    Add-Type -AssemblyName System.IO.Compression.FileSystem
+                    [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $TargetDir)
+                }
+                catch {
+                    Write-Line ("  ZipFile extraction failed too: " + $_.Exception.Message)
+                    continue
+                }
+            }
+            if (Test-Path $adbExe) {
+                Write-Line ("  adb ready: " + $adbExe)
+                return $adbExe
+            }
+            Write-Line "  extracted, but adb.exe is not inside platform-tools\ - trying the next URL"
+        }
+    }
+    finally { $ProgressPreference = $previousPreference }
+    return $null
+}
+
 $candidate = $Adb
+if ($candidate -and -not (Test-Path $candidate)) {
+    Write-Line ("-Adb was given but does not exist: " + $candidate)
+    $candidate = $null
+}
 if (-not $candidate) {
     $onPath = Get-Command adb -ErrorAction SilentlyContinue
     if ($onPath) { $candidate = $onPath.Source }
@@ -193,25 +277,35 @@ if (-not $candidate) {
     foreach ($guess in @(
             (Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"),
             "C:\platform-tools\adb.exe",
-            (Join-Path $env:USERPROFILE "platform-tools\adb.exe")
+            (Join-Path $env:USERPROFILE "platform-tools\adb.exe"),
+            (Join-Path $env:USERPROFILE "Downloads\platform-tools\adb.exe")
         )) {
         if (Test-Path $guess) { $candidate = $guess; break }
     }
 }
+if (-not $candidate) {
+    $here = $PSScriptRoot
+    if (-not $here) { $here = (Get-Location).Path }
+    Write-Line "adb was not found anywhere on this PC, so fetching Google platform-tools."
+    Write-Line ("target folder: " + $here)
+    $candidate = Get-PlatformTools -TargetDir $here
+}
 if (-not $candidate -or -not (Test-Path $candidate)) {
-    Write-Host ""
-    Write-Host "adb HAIPATIKANI / adb NOT FOUND." -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Install Google platform-tools (official, no installer needed):"
-    Write-Host "  1. Download  https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
-    Write-Host "  2. Extract to C:\platform-tools"
-    Write-Host "  3. Re-run:   powershell -ExecutionPolicy Bypass -File tools\field_diag.ps1 -Adb C:\platform-tools\adb.exe"
-    Write-Host ""
-    exit 2
+    Write-Line "adb HAIPATIKANI / adb STILL NOT AVAILABLE."
+    Write-Line "The automatic download did not work. On a corporate or server machine that"
+    Write-Line "is usually a proxy or firewall blocking dl.google.com."
+    Write-Line ""
+    Write-Line "Manual route, on any machine that can reach the internet:"
+    Write-Line "  1. https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+    Write-Line "  2. extract so that adb.exe sits in C:\platform-tools"
+    Write-Line "  3. re-run with -Adb C:\platform-tools\adb.exe"
+    Write-Line "Android Studio users already have it:"
+    Write-Line ("  -Adb " + (Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"))
+    Stop-Diagnostic 2
 }
 $script:AdbExe = (Resolve-Path $candidate).Path
 Write-Line ("adb: " + $script:AdbExe)
-Write-Line (Invoke-Adb @('version') | Select-Object -First 1)
+Write-Line ("adb version: " + (Invoke-Adb @('version') | Select-Object -First 1))
 
 Invoke-Adb @('start-server') | Out-Null
 
@@ -230,7 +324,7 @@ if ($devices.Count -eq 0) {
     Write-Host "  Settings > System > Developer options > USB debugging = ON"
     Write-Host "  (Developer options: Settings > About phone > tap 'Build number' 7 times)"
     Write-Host "  Then re-plug the cable and tap ALLOW on the 'Allow USB debugging?' prompt."
-    exit 3
+    Stop-Diagnostic 3
 }
 foreach ($line in $devices) { Write-Line $line.Trim() }
 
@@ -241,7 +335,7 @@ if ($ready.Count -eq 0) {
     Write-Host "Look at the phone screen and tap ALLOW on 'Allow USB debugging?'."
     Write-Host "If no prompt appears: Developer options > Revoke USB debugging authorizations,"
     Write-Host "then re-plug the cable."
-    exit 4
+    Stop-Diagnostic 4
 }
 if ($Serial) {
     $script:SerialArg = @('-s', $Serial)
@@ -249,7 +343,7 @@ if ($Serial) {
 elseif ($ready.Count -gt 1) {
     Write-Host ""
     Write-Host "More than one device is connected. Re-run with -Serial <id> from the list above." -ForegroundColor Yellow
-    exit 5
+    Stop-Diagnostic 5
 }
 else {
     $script:SerialArg = @('-s', (($ready[0] -split "`t")[0].Trim()))
@@ -311,7 +405,12 @@ if ($SkipInstall) {
     Write-Line "install: skipped (-SkipInstall)"
 }
 elseif ($apkPath -and (Test-Path $apkPath)) {
-    Write-Line ("installing: " + $apkPath)
+    $apkSize = (Get-Item $apkPath).Length
+    Write-Line ("installing: " + $apkPath + "  (" + $apkSize + " bytes)")
+    if ($apkSize -lt 10000000) {
+        Write-Line "WARNING: that APK is under 10 MB, so the download was probably truncated."
+        Write-Line "WARNING: install it anyway, but re-download if the install fails."
+    }
     $installResult = Invoke-Adb @('install', '-r', $apkPath)
     Write-Line ("install result: " + ($installResult -replace "`r`n", " | "))
     if ($installResult -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE|INSTALL_FAILED_VERSION_DOWNGRADE|signatures do not match") {
@@ -341,7 +440,7 @@ if ($pmPath -notmatch "package:") {
     Write-Line "install: get tanuki-rush-android-preview.apk from"
     Write-Line "install:   https://github.com/mwijay12/tanuki-rush/releases/latest"
     Write-Line "install: then re-run with -Apk <path to apk>."
-    exit 6
+    Stop-Diagnostic 6
 }
 Write-Line ("pm path: " + ($pmPath -replace "`n", " "))
 
@@ -368,7 +467,6 @@ if ($startResult -match "Error|Exception") {
 # ---------------------------------------------------------------------------
 Write-Section "screen sampling"
 
-if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
 $lastSummary = $null
 $captureAt = @(@(3, 8, 13, 20, 30, 45, 60, 90) | Where-Object { $_ -le $WaitSeconds })
 if ($captureAt -notcontains $WaitSeconds) { $captureAt += $WaitSeconds }
