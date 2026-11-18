@@ -10,14 +10,59 @@ permissions:
   contents: read
 
 jobs:
+  signing-key:
+    name: Provide one shared debug keystore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # creates the keystore release on first use
+    steps:
+      - name: Publish a keystore if the release does not exist yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=ci-signing-key
+          repo=${{ github.repository }}
+          if gh release view "$tag" --repo "$repo" >/dev/null 2>&1; then
+            echo "keystore release already published; nothing to do"
+            exit 0
+          fi
+          # Every Actions runner generates its own ~/.android/debug.keystore, so
+          # the preview APK from `build` and the diagnostic APKs from
+          # `build-field-apks` and `build-impeller-off` were each signed with a
+          # different key. Installing one over another then failed with
+          # INSTALL_FAILED_UPDATE_INCOMPATIBLE, which costs an uninstall, and an
+          # uninstall erases local progress - that is what happened on the
+          # reporting Pixel 8 Pro. One published keystore ends it.
+          keytool -genkeypair -v \
+            -keystore tanuki-ci-debug.keystore \
+            -storepass android -keypass android \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 \
+            -validity 10950 \
+            -dname 'CN=Tanuki Rush CI Debug, OU=Tanuki Rush, O=Tanuki Rush, L=CI, S=CI, C=TZ'
+          gh release create "$tag" tanuki-ci-debug.keystore --repo "$repo" \
+            --title 'Tanuki Rush - shared CI debug keystore' \
+            --notes 'One debug keystore for every CI-built APK, so any two of them replace each other with `adb install -r`.
+
+          This is a debug-grade key on purpose and is not a secret: it must never be used for a Play Store upload, which needs a securely backed-up release keystore. Deleting this release makes the next run generate a new key, which costs every installed preview one uninstall.'
+          echo "published $tag"
+
   build:
     name: Test and build Android preview
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    needs: signing-key
     permissions:
       contents: write # Needed only by the opt-in preview release step below.
     steps:
       - uses: actions/checkout@v4
+      - name: Use the shared debug keystore
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/tanuki-ci-debug.keystore" \
+            "https://github.com/${{ github.repository }}/releases/download/ci-signing-key/tanuki-ci-debug.keystore" \
+            || echo "::notice::shared keystore unavailable, so this job signs with its own debug key and its APKs cannot be installed over another job's"
+          echo "TANUKI_SHARED_DEBUG_KEYSTORE=$RUNNER_TEMP/tanuki-ci-debug.keystore" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -245,9 +290,15 @@ jobs:
     name: Build Impeller-off diagnostic APK
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: build
+    needs: [build, signing-key]
     steps:
       - uses: actions/checkout@v4
+      - name: Use the shared debug keystore
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/tanuki-ci-debug.keystore" \
+            "https://github.com/${{ github.repository }}/releases/download/ci-signing-key/tanuki-ci-debug.keystore" \
+            || echo "::notice::shared keystore unavailable, so this job signs with its own debug key and its APKs cannot be installed over another job's"
+          echo "TANUKI_SHARED_DEBUG_KEYSTORE=$RUNNER_TEMP/tanuki-ci-debug.keystore" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -316,11 +367,17 @@ jobs:
     name: Build on-device diagnostic APKs (arm64)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    needs: build
+    needs: [build, signing-key]
     permissions:
       contents: write # only used by the opt-in upload step below
     steps:
       - uses: actions/checkout@v4
+      - name: Use the shared debug keystore
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/tanuki-ci-debug.keystore" \
+            "https://github.com/${{ github.repository }}/releases/download/ci-signing-key/tanuki-ci-debug.keystore" \
+            || echo "::notice::shared keystore unavailable, so this job signs with its own debug key and its APKs cannot be installed over another job's"
+          echo "TANUKI_SHARED_DEBUG_KEYSTORE=$RUNNER_TEMP/tanuki-ci-debug.keystore" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
