@@ -156,9 +156,17 @@ body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color
 .pause .ttl { font-weight: 900; font-style: italic; font-size: 64px; transform: skewX(-12deg); text-shadow: 5px 5px 0 var(--hud-ink); margin-bottom: 20px; }
 .pause .col { display: grid; gap: 12px; }
 
-.loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #0a1a44; font-weight: 900; font-style: italic;
+.loading { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; background: #0a1a44; font-weight: 900; font-style: italic;
   font-size: 28px; letter-spacing: .2em; color: #fff; pointer-events: none; transition: opacity .5s; }
 .loading.done { opacity: 0; }
+/* Live boot stage. The magenta is unique in this game on purpose: if it is on
+   screen the page is being drawn and stuck in a named call, and if it is absent
+   the page is not being drawn at all. Those two need opposite fixes, and no
+   amount of reasoning from a distance told them apart. */
+.loading-stage { font-family: var(--font-jp); font-weight: 800; font-style: normal; font-size: 15px; letter-spacing: .08em;
+  color: #ff4fd8; text-shadow: 2px 2px 0 rgba(0, 0, 0, .85); text-transform: uppercase; max-width: 90vw; text-align: center; }
+.loading-stage.stalled { color: #ffe14f; font-size: 17px; animation: stageBlink 1s steps(2) infinite; }
+@keyframes stageBlink { 50% { opacity: .35; } }
 
 /* ---------------- touch controls ---------------- */
 .touch { position: absolute; inset: 0; pointer-events: none; display: none; }
