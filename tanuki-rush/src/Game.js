@@ -24,6 +24,7 @@ import { haptic, keepAwake, scheduleStreakReminder, hapticsEnabled, setHaptics, 
 import { gameStorage } from './storage.js';
 import { setAnisotropy } from './core/textures.js';
 import { Bot } from './core/Bot.js';
+import { bootStage, bootNote } from './core/bootTracer.js';
 
 // Optional modules (written separately); glob import tolerates their absence.
 const modelModules = import.meta.glob('./player/TanukiModel.js');
@@ -66,8 +67,11 @@ export class Game {
     this.muted = !!this.save.muted;
     this.fxScale = this.save.softFx ? 0.4 : 1;
 
+    bootStage('environment');
     this._setupEnvironment();
+    bootStage('level');
     this.level = buildLevel();
+    bootStage('world');
     this._buildWorld();
 
     this.fx = new Particles(2600);
@@ -82,6 +86,7 @@ export class Game {
     this.objects = new Objects(this.scene, this.level, this.events, this.fx);
     this.truck = new Truck(this.scene, this.level, this.events, this.fx, this.objects);
 
+    bootStage('postfx');
     this.post = new PostFX(this.R.renderer, { samples: QUALITY[this.quality]?.samples ?? 4 });
     this.R.onResize.push((w, h) => {
       this.post.setSize(w, h);
@@ -104,6 +109,7 @@ export class Game {
     this._tmp2 = new THREE.Vector3();
     this._q = new THREE.Quaternion();
 
+    bootStage('optional-modules');
     this._loadOptional();
     this.debug = this.params.has('debug');
     this.bot = this.params.has('bot') ? new Bot(this) : null;
@@ -321,23 +327,63 @@ export class Game {
 
   // ======================================================================= flow
   /** Compile every shader up front (hidden objects included) so nothing stutters mid-run. */
+  /// Warm the shader cache, but never at the price of reaching the title screen.
+  ///
+  /// `compileAsync` is the only call in the boot path that hands control to the
+  /// GPU driver and waits for it to answer, and `await` on a promise that never
+  /// settles cannot be caught: the `try` below handles a rejection, not a hang.
+  /// A hang here leaves `.loading` on screen forever - a flat navy screen with a
+  /// healthy process, which is exactly what was reported from the field. So the
+  /// compile now gets a budget. Over budget the game skips precompilation and
+  /// compiles shaders on demand during the first frames instead: a stutter, not
+  /// a dead screen.
+  static PRECOMPILE_BUDGET_MS = 8000;
+
   async precompile() {
     const hidden = [];
     this.scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+    let warm = null;
     try {
       const r = this.R.renderer;
-      if (r.compileAsync) await r.compileAsync(this.scene, this.camera, this.scene);
-      else r.compile(this.scene, this.camera);
+      const budget = Game.PRECOMPILE_BUDGET_MS;
+      bootStage(`shaders (budget ${budget}ms)`);
+      if (typeof r.compileAsync === 'function') {
+        let settle;
+        const timeout = new Promise((resolve) => {
+          settle = setTimeout(() => resolve('timeout'), budget);
+        });
+        try {
+          warm = await Promise.race([r.compileAsync(this.scene, this.camera, this.scene), timeout]);
+        } finally {
+          // Always clear the timer: a rejected compile must not leave a pending
+          // timeout that resolves an already-settled race seconds later.
+          clearTimeout(settle);
+        }
+        if (warm === 'timeout') {
+          bootNote(`shader compile over ${budget}ms, skipped`);
+          console.warn(`precompile: shader compile exceeded ${budget}ms, continuing without it`);
+          for (const o of hidden) o.visible = false;
+          return;
+        }
+      } else {
+        r.compile(this.scene, this.camera);
+      }
+      bootStage('first render');
       r.setRenderTarget(this.post.rt);
       r.render(this.scene, this.camera);
       r.setRenderTarget(null);
-    } catch (e) { console.warn('precompile failed', e); }
+    } catch (e) {
+      bootNote(`precompile failed: ${e && e.message ? e.message : e}`);
+      console.warn('precompile failed', e);
+    }
     for (const o of hidden) o.visible = false;
   }
 
   async start() {
+    bootStage('optional modules');
     await Promise.race([this._optionalReady, new Promise((r) => setTimeout(r, 4000))]);
     await this.precompile();
+    bootStage('ready');
     this.hud.doneLoading();
     this.toTitle();
     // create / unlock the AudioContext inside the very first user gesture (autoplay policies)

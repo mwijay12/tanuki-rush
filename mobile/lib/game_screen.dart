@@ -30,6 +30,9 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   bool _firstFramePainted = false;
   String? _fatalError;
   DateTime? _lastBackPress;
+  Timer? _bootPollTimer;
+  String _lastBootLine = '';
+  int _bootPolls = 0;
 
   // The query selects the native backend without changing the stable origin.
   Uri get _gameUri => widget.gameUri.replace(queryParameters: {
@@ -46,6 +49,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _bootPollTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _storageStatus.dispose();
     super.dispose();
@@ -59,6 +63,58 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       _enterImmersiveMode();
       unawaited(_notifyGameResumed());
     }
+  }
+
+  /// Asks the page where its boot sequence is, once a second, and writes the
+  /// answer to logcat.
+  ///
+  /// The loading screen now prints its own stage, but a report from the field
+  /// also needs a trace that survives the screen: the reported symptom is a flat
+  /// navy surface with the process alive, which cannot distinguish "the page is
+  /// stuck inside a named call" from "the page stopped being drawn". The sample
+  /// counter settles it - a counter that keeps climbing while the screen stays
+  /// flat means the page is alive and not being presented, and a counter that
+  /// stops means the page hung, and the last stage says where.
+  void _startPageBootPolling() {
+    _bootPollTimer?.cancel();
+    _bootPollTimer = Timer.periodic(const Duration(seconds: 1), (_) => _pollPageBoot());
+    unawaited(_pollPageBoot());
+  }
+
+  Future<void> _pollPageBoot() async {
+    final controller = _controller;
+    if (controller == null) return;
+    try {
+      final result = await controller.evaluateJavascript(
+        source: 'window.__tanukiBoot ? JSON.stringify(window.__tanukiBoot()) : null',
+      );
+      if (!mounted) return;
+      final raw = result is String ? result : result?.toString();
+      if (raw == null || raw.isEmpty || raw == 'null') {
+        _bootLine('"boot hook not present yet"');
+        return;
+      }
+      _bootLine(raw);
+    } catch (_) {
+      // The page can be mid-navigation or the view mid-teardown; a failed poll
+      // is uninteresting and must never surface as an error.
+    }
+  }
+
+  /// Writes one page-boot breadcrumb. The poller stops as soon as the page says
+  /// it reached `ready`, and in any case after [maxBootPolls]: `totalMs` changes
+  /// every second, so an unconditional poll would print once a second for the
+  /// whole session and bury the lines that matter.
+  static const int maxBootPolls = 180;
+
+  void _bootLine(String payload) {
+    _bootPolls += 1;
+    final reachedReady = payload.contains('"stage":"ready"');
+    if (_bootPolls >= maxBootPolls || reachedReady) _bootPollTimer?.cancel();
+    if (payload == _lastBootLine) return;
+    _lastBootLine = payload;
+    // ignore: avoid_print — logcat breadcrumb; debugPrint is dropped in release.
+    print('[tanuki] page-boot: $payload');
   }
 
   Future<void> _notifyGameResumed() async {
@@ -279,6 +335,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 onWebViewCreated: (controller) {
                   _controller = controller;
                   _registerBridge(controller);
+                  _startPageBootPolling();
                 },
                 onLoadStop: (_, __) {
                   if (!mounted) return;
@@ -307,6 +364,22 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                 onConsoleMessage: (_, message) {
                   if (kDebugMode) {
                     debugPrint('[web ${message.messageLevel}] ${message.message}');
+                  }
+                  // Errors and warnings also go to logcat in a release build,
+                  // where debugPrint is dropped. The page's own boot breadcrumbs
+                  // are useless if they only exist in a build the field cannot
+                  // run, and a 240-character cap keeps logcat readable.
+                  final level = message.messageLevel;
+                  if (level == ConsoleMessageLevel.ERROR ||
+                      level == ConsoleMessageLevel.WARNING) {
+                    final text = message.message;
+                    final clipped =
+                        text.length > 240 ? '${text.substring(0, 240)}…' : text;
+                    // ConsoleMessageLevel is a plain class in
+                    // flutter_inappwebview, not a Dart enum, so it has no `name`
+                    // getter; toString() is what the package overrides.
+                    // ignore: avoid_print — logcat breadcrumb; debugPrint is dropped in release.
+                    print('[tanuki-web] $level: $clipped');
                   }
                 },
               ),

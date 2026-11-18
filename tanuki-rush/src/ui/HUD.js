@@ -1,5 +1,6 @@
 import './hud.css';
 import { gameStorage } from '../storage.js';
+import { getBootStage, onBootSample } from '../core/bootTracer.js';
 
 const LEAF_SVG = `<svg class="leaf-icon" viewBox="0 0 40 40"><path d="M20 2 C31 10 33 24 20 36 C7 24 9 10 20 2 Z" fill="#ffc629" stroke="#0c1633" stroke-width="3"/><path d="M20 6 L20 37" stroke="#d98a0b" stroke-width="2.5"/></svg>`;
 
@@ -75,11 +76,21 @@ export class HUD {
     this.shop = el('div', 'screen shop hidden');
     root.appendChild(this.shop);
 
-    this.loading = el('div', 'loading', 'LOADING…');
+    this.loading = el('div', 'loading');
     this.loading.style.backgroundImage =
       "linear-gradient(rgba(10,26,68,.82), rgba(10,26,68,.96)), url('./og-image.jpg')";
     this.loading.style.backgroundSize = 'cover';
     this.loading.style.backgroundPosition = 'center';
+    this.loading.appendChild(el('div', 'loading-text', 'LOADING…'));
+    // The stage line is the whole point: a navy screen that can say which call
+    // it is waiting inside is a report, and a navy screen that cannot is the
+    // bug that cost a week. The colour is not used anywhere else in the game, so
+    // it cannot be mistaken for the window background the app shows when this
+    // page is not being drawn at all.
+    this.loadingStage = el('div', 'loading-stage');
+    this.loading.appendChild(this.loadingStage);
+    this._renderBootStage(getBootStage());
+    this._stopBootSamples = onBootSample((s) => this._renderBootStage(s));
     root.appendChild(this.loading);
 
     this._last = {};
@@ -89,7 +100,20 @@ export class HUD {
     this._buildTouch();
   }
 
-  doneLoading() { this.loading.classList.add('done'); setTimeout(() => this.loading.remove(), 600); }
+  _renderBootStage(s) {
+    if (!this.loadingStage || !this.loading.isConnected) return;
+    const secs = (s.ms / 1000).toFixed(1);
+    this.loadingStage.textContent = s.stalled
+      ? `STALLED IN ${s.stage} FOR ${secs}s${s.note ? ` - ${s.note}` : ''}`
+      : `${s.stage} - ${secs}s`;
+    this.loadingStage.classList.toggle('stalled', s.stalled);
+  }
+
+  doneLoading() {
+    if (this._stopBootSamples) this._stopBootSamples();
+    this.loading.classList.add('done');
+    setTimeout(() => this.loading.remove(), 600);
+  }
 
   showHUD(on) { this.hud.classList.toggle('hidden', !on); }
 

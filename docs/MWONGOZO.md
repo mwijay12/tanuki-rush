@@ -22,6 +22,25 @@ Toleo la 1.0.4 na 1.0.5 lilikuwa na hitilafu: app ilikaa kwenye **skrini ya bluu
 
 Toleo la **1.0.6** linaongeza *watchdog* ya native: ikiwa hakuna fremu ndani ya sekunde 12, skrini itaonyesha maelezo — model ya simu, toleo la Android, API level na muda uliosubiriwa — pamoja na **Jaribu tena / Retry** na **Funga / Close**. Kwenye CI, emulator ya API 36 imepita mara nne mfululizo kwa 1.0.6, lakini kwa kuwa hitilafu ni ya mara kwa mara, kupita mara nne hakuthibitishi chochote — **hitilafu bado haijathibitishwa kutatuliwa**. Ukiona skrini hiyo, piga picha na uripoti maneno yaliyoandikwa; maelezo hayo ndiyo yanahitajika kutengeneza fix.
 
+### 1.0.8 — skrini ya kupakia sasa inakuambia inako
+
+Tangu 1.0.8, skrini ya **LOADING…** ina mstari wa pili wenye rangi ya **magenta** ambayo haipo popote pengine kwenye mchezo. Mstari huo unaandika hatua ya sasa na muda wake, kwa mfano `world - 1.4s`. Ukisubiri zaidi ya sekunde 6 bila hatua mpya, unabadilika kuwa manjano unaopepesa: `STALLED IN shaders (budget 8000ms) FOR 9.0s`.
+
+Kwa nini hii ni muhimu kuliko jaribio jingine lolote: rangi ya bluu ya giza (`#0A1A44`) inaweza kumaanisha mambo mawili yanayohitaji **matibabu tofauti kabisa**, na mpaka sasa hayakuweza kutofautishwa kwa kuangalia skrini.
+
+| Unachoona | Maana yake | Hatua |
+|---|---|---|
+| Magenta `stage - muda` inabadilika | Ukurasa ni hai, unaendelea kawaida | subira; mchezo unafunguka |
+| Manjano `STALLED IN <hatua>` | Ukurasa ni hai lakini umening'inia kwenye simulo ile; **jina la hatua ndilo jibu** | piga picha, tuma jina la hatua |
+| Bluu tupu, **hakuna** magenta wala manjano | Ukurasa **hauchorwi kabisa** — tatizo ni la WebView/platform view, si la mchezo | hii ndiyo habari muhimu zaidi; tuma picha |
+| Nyekundu `#d8231d` na maandishi manjano | Kuanza kushindwa kabisa; maandishi yanaonyesha hatua na kosa | piga picha, tuma maandishi yote |
+
+Pia: 1.0.8 inatatua njia moja iliyokuwa inaweza kuleta bluu ya kudumu. `Game.precompile()` ilikuwa inangoja `compileAsync` ya dereva wa GPU **bila kikomo cha muda**. Kwa kuwa `await` kwenye promise isiyokamilika haiwezi kukamatwa na `try/catch`, dereva akining'inia, skrini ya kupakia ilibaki milele — bluu isiyo na kitu, huku process ikiwa nzima. Sasa kuna bajeti ya **sekunde 8**: ikizidi, mchezo unaendelea bila precompile na shader zinajengwa wakati wa fremu za kwanza (mtetemo mdogo tu wa picha — si skrini mfu).
+
+Kwenye kompyuta za kawaida na browser, hatua hizi hupita kwa chini ya sekunde 8, kwa hiyo hakuna kinachobadilika.
+
+**Hakuna haja ya PC tena.** Skrini yenyewe ndiyo ripoti: piga picha ya unachochaona baada ya sekunde ~30 na hiyo pekee inatosha. Bado, kama una PC, mistari ya `[tanuki] page-boot:` sasa inaonekana kwenye logcat hata kwa APK ya release.
+
 ### Ripoti ya kwanza kutoka simu (2026-11-17) — hitilafu si ile tuliyodhani
 
 Kipimo cha kwanza cha `field_diag.ps1` kwenye **Pixel 8 Pro, Android 17 (API 37)**, Mali-G715, WebView 157.0.8103.38, toleo 1.0.7+8, kilibadilisha utambuzi kabisa:
