@@ -34,6 +34,20 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
   String _lastBootLine = '';
   int _bootPolls = 0;
 
+  /// Which platform-view presentation the WebView is using right now, and the
+  /// key that forces it to be recreated when that changes. Both are needed: an
+  /// [InAppWebView] reads its settings once, so switching presentation means
+  /// rebuilding the view from scratch.
+  GameCompositionMode _mode = GameCompositionMode.hybrid;
+  int _webViewEpoch = 0;
+  Timer? _hintTimer;
+  bool _showModeHint = true;
+
+  /// What the WebView says it is showing. The page is audible but invisible on
+  /// the affected device, so "did it even load" is a separate open question, and
+  /// this is answered by the plugin rather than by the page.
+  String _pageLabel = 'loading…';
+
   // The query selects the native backend without changing the stable origin.
   Uri get _gameUri => widget.gameUri.replace(queryParameters: {
         ...widget.gameUri.queryParameters,
@@ -45,11 +59,15 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _enterImmersiveMode();
+    // Long enough to cover the whole boot on a slow device, short enough that
+    // it is gone before anyone is playing.
+    _showModeHintFor(const Duration(seconds: 45));
   }
 
   @override
   void dispose() {
     _bootPollTimer?.cancel();
+    _hintTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _storageStatus.dispose();
     super.dispose();
@@ -144,14 +162,30 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(
-            duration: Duration(seconds: 2),
+            // Two seconds is too short to read three lines, and the second
+            // press no longer exits: it switches how the WebView is presented.
+            // The message has to say so or it is a lie on the screen.
+            duration: Duration(seconds: 5),
             backgroundColor: GameColors.deep,
             content: Text(
-              'Bonyeza tena kuondoka\nPress back again to exit',
+              'Bonyeza tena: badilisha njia ya kuchora (picha ikikosekana)\n'
+              'Bonyeza mara ya 3: ondoka\n'
+              'Back again: switch render mode if the picture is missing · 3rd: exit',
               textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, height: 1.5),
             ),
           ),
         );
+      return;
+    }
+
+    // Second press inside two seconds: switch how the WebView is presented.
+    // On the reporting device the page is audible but not visible, so nothing
+    // the page draws can offer this choice - the back button and Flutter's own
+    // widgets are the only controls that provably reach the screen. Exiting
+    // becomes a third press, which is still reachable and still says so.
+    if (_fatalError == null) {
+      _switchCompositionMode();
       return;
     }
 
@@ -330,6 +364,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
           children: [
             Positioned.fill(
               child: InAppWebView(
+                key: ValueKey<int>(_webViewEpoch),
                 initialUrlRequest: URLRequest(url: WebUri(_gameUri.toString())),
                 initialSettings: _settings,
                 onWebViewCreated: (controller) {
@@ -337,14 +372,42 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                   _registerBridge(controller);
                   _startPageBootPolling();
                 },
-                onLoadStop: (_, __) {
+                onLoadStop: (_, loadedUrl) async {
                   if (!mounted) return;
                   setState(() => _firstFramePainted = true);
                   _enterImmersiveMode();
+                  // The badge is Flutter's own widget, so it is visible on
+                  // screens where nothing the WebView draws is visible. Putting
+                  // the loaded URL and the document's own readiness there
+                  // answers whether the page arrived at all, without a PC and
+                  // without trusting a plugin API this file has not used
+                  // before: evaluateJavascript is already called three times
+                  // here, so its shape is known.
+                  String title = '';
+                  try {
+                    final probed = await _controller?.evaluateJavascript(
+                      source: "document.readyState + ' / ' + document.title",
+                    );
+                    title = probed?.toString().trim() ?? '';
+                  } catch (_) {
+                    title = '';
+                  }
+                  if (!mounted) return;
+                  setState(() {
+                    _pageLabel = 'page: ${loadedUrl ?? '?'} · '
+                        '${title.isEmpty ? 'no title' : title}';
+                  });
                 },
                 onReceivedError: (_, request, error) {
                   if (request.isForMainFrame != true) return;
-                  setState(() => _fatalError = error.description);
+                  setState(() {
+                    _fatalError = error.description;
+                    // error.type is a plain class in flutter_inappwebview, not
+                    // a Dart enum, so it has no `name` getter - the same trap
+                    // ConsoleMessageLevel set one build earlier. toString() is
+                    // what the plugin overrides.
+                    _pageLabel = 'page error: ${error.type} ${error.description}';
+                  });
                 },
                 onReceivedHttpError: (_, request, response) {
                   if (request.isForMainFrame != true) return;
@@ -386,6 +449,8 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
             ),
             if (!_firstFramePainted && error == null) const _LoadingOverlay(),
             if (error != null) _ErrorOverlay(message: error, onRetry: _reload),
+            if (_showModeHint)
+              _CompositionModeBadge(label: _mode.label, page: _pageLabel),
             if (error == null)
               ValueListenableBuilder<String>(
                 valueListenable: _storageStatus,
@@ -399,7 +464,61 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
     );
   }
 
-  static final InAppWebViewSettings _settings = createGameWebViewSettings();
+  InAppWebViewSettings get _settings => createGameWebViewSettings(mode: _mode);
+
+  /// Switches how Flutter presents the WebView and reloads the page into it.
+  ///
+  /// This exists because the affected device gives no other way in: the page is
+  /// audible but invisible, so anything the page could show is invisible too.
+  /// The back button, the SnackBar and this badge are Flutter's own widgets and
+  /// they *are* visible on that screen, which makes them the only usable
+  /// controls. Pressing back twice therefore switches presentation instead of
+  /// only offering to exit.
+  void _switchCompositionMode() {
+    setState(() {
+      _mode = _mode == GameCompositionMode.hybrid
+          ? GameCompositionMode.texture
+          : GameCompositionMode.hybrid;
+      _webViewEpoch += 1;
+      _firstFramePainted = false;
+      _fatalError = null;
+      _bootPolls = 0;
+      _lastBootLine = '';
+      _pageLabel = 'loading…';
+    });
+    _bootPollTimer?.cancel();
+    _showModeHintFor(const Duration(seconds: 12));
+    // ignore: avoid_print — logcat breadcrumb; debugPrint is dropped in release.
+    print('[tanuki] composition-mode: ${_mode.label} (view epoch $_webViewEpoch)');
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 4),
+          backgroundColor: GameColors.deep,
+          content: Text(
+            'Njia ya kuchora / render mode: ${_mode.label}\n'
+            'Subiri sekunde chache. Picha ikija, njia hii ndiyo sahihi.\n'
+            'Wait a few seconds. If the picture appears, this mode is the fix.\n'
+            'Bonyeza tena kurudi ${_mode == GameCompositionMode.texture ? 'HYBRID' : 'TEXTURE'} · mara ya 3: ondoka',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, height: 1.5),
+          ),
+        ),
+      );
+  }
+
+  /// Keeps the on-screen mode badge visible for [duration]. It is shown during
+  /// boot, when it is most likely to be needed, and hidden afterwards so it
+  /// never sits on top of a playable game.
+  void _showModeHintFor(Duration duration) {
+    _hintTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _showModeHint = true);
+    _hintTimer = Timer(duration, () {
+      if (mounted) setState(() => _showModeHint = false);
+    });
+  }
 }
 
 class _LoadingOverlay extends StatelessWidget {
@@ -529,4 +648,46 @@ class _LeafPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Names the current platform-view presentation, drawn by Flutter.
+///
+/// Deliberately a Flutter widget and not part of the page: on the device this
+/// was written for, the page is running and audible while nothing it draws
+/// reaches the display. Anything the WebView renders is therefore invisible
+/// there, and a diagnostic the sufferer cannot see is not a diagnostic.
+class _CompositionModeBadge extends StatelessWidget {
+  const _CompositionModeBadge({required this.label, required this.page});
+
+  final String label;
+  final String page;
+
+  @override
+  Widget build(BuildContext context) {
+    const style = TextStyle(
+      color: Color(0xE6FFE14F),
+      fontSize: 11,
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0.4,
+      shadows: [Shadow(color: Color(0xCC000000), blurRadius: 3)],
+    );
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 6,
+      child: IgnorePointer(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'MODE: $label  ·  BACK ×2 kubadilisha / to switch  ·  BACK ×3 kuondoka / to exit',
+              textAlign: TextAlign.center,
+              style: style,
+            ),
+            Text(page, textAlign: TextAlign.center, style: style),
+          ],
+        ),
+      ),
+    );
+  }
 }

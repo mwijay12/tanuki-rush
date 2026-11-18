@@ -16,6 +16,31 @@ void main() {
     expect(nativeSettings['disableVerticalScroll'], isFalse);
   });
 
+  test('the presentation mode reaches the platform channel, and only that', () {
+    // A Pixel 8 Pro plays the game with audio but no picture, and Flutter's own
+    // widgets do appear on that screen, so the fault is in how the platform view
+    // is presented. Both presentations must be reachable at runtime and they must
+    // differ in exactly one field.
+    final hybrid = createGameWebViewSettings();
+    final texture = createGameWebViewSettings(mode: GameCompositionMode.texture);
+
+    expect(hybrid.useHybridComposition, isTrue);
+    expect(hybrid.toMap()['useHybridComposition'], isTrue);
+    expect(texture.useHybridComposition, isFalse);
+    expect(texture.toMap()['useHybridComposition'], isFalse);
+
+    // Switching presentation must not become a way to lose touch input: the
+    // drag-axis flags are what flutter_inappwebview_android rewrites events for.
+    for (final settings in [hybrid, texture]) {
+      expect(settings.disableHorizontalScroll, isFalse);
+      expect(settings.disableVerticalScroll, isFalse);
+      expect(settings.hardwareAcceleration, isTrue);
+      expect(settings.transparentBackground, isFalse);
+      expect(settings.javaScriptEnabled, isTrue);
+      expect(settings.mediaPlaybackRequiresUserGesture, isFalse);
+    }
+  });
+
   test('overscroll and zoom remain disabled without blocking touch moves', () {
     final settings = createGameWebViewSettings();
     expect(settings.overScrollMode, OverScrollMode.NEVER);
