@@ -24,6 +24,38 @@ fail() {
   exit 1
 }
 
+# Describe a screenshot, with the decoder as the authority on flatness.
+#
+# The byte-count heuristic this replaces was wrong, and run 44044845761 proves
+# it in a single annotation: "a flat single-colour screen (15770 bytes)" followed
+# by "640x320 distinct=92 centre=#EEEDF4 flat=no". A threshold cannot survive a
+# change of resolution - every leg in that run, passing and failing alike,
+# produced a 14-17 KB PNG at 640x320 holding 83 to 124 distinct colours. So the
+# size is now only a fallback for images the decoder cannot read, and the claim
+# in the notice always comes from the pixels themselves.
+describe_screen() {
+  SCREEN_BYTES=0
+  SCREEN_SUMMARY="no screenshot was captured"
+  SCREEN_KIND="an unknown screen"
+  [ -s "$1" ] || return 0
+  SCREEN_BYTES="$(wc -c < "$1")"
+  SCREEN_SUMMARY="$(python3 tools/png_summary.py "$1" 2>/dev/null | head -n 1)"
+  echo "$1: ${SCREEN_BYTES} bytes"
+  python3 tools/png_summary.py "$1" 2>/dev/null || true
+  case "$SCREEN_SUMMARY" in
+    *flat=yes*) SCREEN_KIND="a flat single-colour screen" ;;
+    *flat=no*) SCREEN_KIND="a screen with real content" ;;
+    *)
+      SCREEN_SUMMARY="colour undecodable"
+      if [ "$SCREEN_BYTES" -lt 51200 ]; then
+        SCREEN_KIND="probably a flat screen (small PNG, colour undecodable)"
+      else
+        SCREEN_KIND="probably a rendered screen (large PNG, colour undecodable)"
+      fi
+      ;;
+  esac
+}
+
 phase "emulator boot"
 # Readiness timings are recorded because "no first frame in 180s" means something
 # different on an emulator that needed 90s to reach a usable package manager than
@@ -121,28 +153,14 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     # as a visible game: on the Pixel 8 Pro Flutter paints in ~1.1 s, the WebView
     # loads and the game runs, yet the screen stays a flat navy because the
     # platform view stops being presented. This check cannot gate on that (an
-    # emulator has no real GPU, so the WebGL canvas may legitimately stay empty),
-    # but a flat single-colour PNG compresses to a few kilobytes while a rendered
-    # screen needs hundreds, so the byte count is a free, dependency-less signal.
+    # emulator has no real GPU, so the WebGL canvas may legitimately stay empty).
+    # Which colour matters as much as whether it is flat: #0A1A44 is a Flutter or
+    # Android surface, #000000 is the web page's own background with a canvas that
+    # is not drawing, #BFE3FF is the WebGL clear colour.
     sleep 15
     adb exec-out screencap -p > boot-pass.png 2>/dev/null || true
-    if [ -s boot-pass.png ]; then
-      png_bytes="$(wc -c < boot-pass.png)"
-      # Which colour, not merely whether it is flat: #0A1A44 is a Flutter or
-      # Android surface, #000000 is the web page's own background with a dead
-      # canvas, #BFE3FF is the WebGL clear colour. Decoded with the standard
-      # library only (tools/png_summary.py), because a smoke test should not need
-      # Pillow and it must never be able to fail the build.
-      colour="$(python3 tools/png_summary.py boot-pass.png 2>/dev/null | head -n 1)"
-      [ -n "$colour" ] || colour="colour summary unavailable"
-      echo "boot-pass.png: ${png_bytes} bytes"
-      python3 tools/png_summary.py boot-pass.png 2>/dev/null || true
-      if [ "$png_bytes" -lt 51200 ]; then
-        echo "::notice::first frame painted but 15s later the screen is a single flat colour (${png_bytes} byte PNG); ${colour}"
-      else
-        echo "::notice::first frame painted and 15s later the screen had real content (${png_bytes} byte PNG); ${colour}"
-      fi
-    fi
+    describe_screen boot-pass.png
+    echo "::notice::first frame painted and 15s later the emulator showed ${SCREEN_KIND} (${SCREEN_BYTES} bytes); ${SCREEN_SUMMARY}"
     exit 0
   fi
   sleep 5
@@ -166,18 +184,8 @@ echo "--- ANR traces ---"
 adb shell ls -l /data/anr 2>/dev/null || true
 adb exec-out screencap -p > boot-failure.png || true
 adb logcat -d > boot-failure-logcat.txt || true
-if [ -s boot-failure.png ]; then
-  fail_png_bytes="$(wc -c < boot-failure.png)"
-  fail_colour="$(python3 tools/png_summary.py boot-failure.png 2>/dev/null | head -n 1)"
-  [ -n "$fail_colour" ] || fail_colour="colour summary unavailable"
-  echo "boot-failure.png: ${fail_png_bytes} bytes"
-  python3 tools/png_summary.py boot-failure.png 2>/dev/null || true
-  if [ "$fail_png_bytes" -lt 51200 ]; then
-    echo "::notice::boot-failure.png is a flat single-colour screen (${fail_png_bytes} bytes); ${fail_colour}"
-  else
-    echo "::notice::boot-failure.png had content, so this is not an empty window background (${fail_png_bytes} bytes); ${fail_colour}"
-  fi
-fi
+describe_screen boot-failure.png
+echo "::notice::at failure the emulator showed ${SCREEN_KIND} (${SCREEN_BYTES} bytes); ${SCREEN_SUMMARY}"
 
 # The verdict has to travel inside the ::error:: annotation: Actions log and
 # artifact storage is unreachable from some sandboxes, while check-run
@@ -206,6 +214,16 @@ if adb shell ps -A 2>/dev/null | grep -q "$package"; then
   proc="process up"
 else
   proc="process NOT running"
+fi
+# Readiness qualifies the verdict instead of merely accompanying it. Run
+# 44044845761 asserted "UI thread STOPPED running after onCreate (blocked, not
+# merely slow)" on an emulator whose boot animation was still running after 414 s
+# and whose screenshot showed the pale grey of a system surface, not the app.
+# Claiming a blocked main thread on top of a machine that never became healthy is
+# the same over-confident reading that already sent this investigation down two
+# dead ends, so a sick emulator now downgrades its own sample.
+if [ "${t_anim:-0}" -gt 120 ] || [ "${t_pkg:-0}" -gt 120 ]; then
+  verdict="${verdict}; UNRELIABLE - the emulator never became healthy (readiness boot=${t_boot}s package=${t_pkg}s bootanim=${t_anim}s), so this sample says nothing about the app"
 fi
 echo "VERDICT: $verdict ($proc)"
 echo "READINESS: boot=${t_boot}s package=${t_pkg}s bootanim=${t_anim}s"
