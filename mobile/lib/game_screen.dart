@@ -375,8 +375,11 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
                     final text = message.message;
                     final clipped =
                         text.length > 240 ? '${text.substring(0, 240)}…' : text;
+                    // ConsoleMessageLevel is a plain class in
+                    // flutter_inappwebview, not a Dart enum, so it has no `name`
+                    // getter; toString() is what the package overrides.
                     // ignore: avoid_print — logcat breadcrumb; debugPrint is dropped in release.
-                    print('[tanuki-web] ${level.name}: $clipped');
+                    print('[tanuki-web] $level: $clipped');
                   }
                 },
               ),
