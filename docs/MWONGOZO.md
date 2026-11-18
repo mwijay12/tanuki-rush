@@ -22,6 +22,37 @@ Toleo la 1.0.4 na 1.0.5 lilikuwa na hitilafu: app ilikaa kwenye **skrini ya bluu
 
 Toleo la **1.0.6** linaongeza *watchdog* ya native: ikiwa hakuna fremu ndani ya sekunde 12, skrini itaonyesha maelezo — model ya simu, toleo la Android, API level na muda uliosubiriwa — pamoja na **Jaribu tena / Retry** na **Funga / Close**. Kwenye CI, emulator ya API 36 imepita mara nne mfululizo kwa 1.0.6, lakini kwa kuwa hitilafu ni ya mara kwa mara, kupita mara nne hakuthibitishi chochote — **hitilafu bado haijathibitishwa kutatuliwa**. Ukiona skrini hiyo, piga picha na uripoti maneno yaliyoandikwa; maelezo hayo ndiyo yanahitajika kutengeneza fix.
 
+### 1.0.9 — kitufe cha **BACK** kinabadilisha njia ya kuchora
+
+Ripoti ya 1.0.8+9 kutoka Pixel 8 Pro ilimaliza utata: **sauti ya mchezo ilisikika** huku skrini ikiwa bluu, na ujumbe wa *"Bonyeza tena kuondoka"* (ambao ni widget ya **Flutter**, si wa ukurasa) **ulionekana** juu ya bluu hiyo. Mambo hayo mawili pamoja yanamaanisha:
+
+- ukurasa wa web **unaendelea** ndani ya WebView (si hang, si `precompile`);
+- Flutter **inaweza** kuchora kwenye skrini hiyo;
+- kwa hiyo kinachokosekana ni **uso wa WebView pekee** usiofikishwa kwenye skrini.
+
+Hii inaitwa *platform view*. Kuna njia **mbili** tu za kuifanya Android, na 1.0.9 inakuwezesha kuzibadilisha **kwenye simu, bila PC**:
+
+| Kubonyeza BACK | Kinachotokea |
+|---|---|
+| **mara 1** | mchezo unapumzika + maelekezo yanaonyeshwa |
+| **mara 2** (ndani ya sekunde 2) | **njia ya kuchora inabadilika**: `HYBRID` ↔ `TEXTURE`, na ukurasa unapakia upya |
+| **mara 3** (ndani ya sekunde 2) | unatoka kwenye mchezo |
+
+Chini ya skrini kuna mstari mdogo wa manjano (widget ya Flutter, kwa hiyo utaonekana hata kama mchezo hauonekani):
+
+```
+MODE: HYBRID · BACK ×2 kubadilisha / to switch · BACK ×3 kuondoka / to exit
+page: http://127.0.0.1:43853/?native=1 · complete / TANUKI RUSH
+```
+
+Mstari wa pili unaambia **kama ukurasa umepakia**: `complete / TANUKI RUSH` inamaanisha umepakia kikamilifu; `loading…` inamaanisha bado; `page error: …` inamaanisha umeshindwa. Mstari huu unatoweka baada ya sekunde 45, na kurudi kwa sekunde 12 kila unapobadilisha njia.
+
+**Unachotakiwa kufanya:** fungua mchezo → subiri bluu ijitokeze → **bonyeza BACK mara 2** → subiri sekunde ~15.
+
+- 🎮 **Picha ikija katika `TEXTURE`** → tumepata suluhisho; nitafanya `TEXTURE` iwe chaguo-msingi.
+- 🔵 **Bado bluu katika njia zote mbili** → tatizo si njia ya kuchora; nitahamia Impeller (tumia `tanuki-rush-arm64-release-impeller-off.apk` kutoka release ile ile — ina 1.0.9 pia).
+- **Piga picha ya skrini katika kila njia** (mstari wa manjano utaonekana) — hiyo pekee inatosha.
+
 ### 1.0.8 — skrini ya kupakia sasa inakuambia inako
 
 Tangu 1.0.8, skrini ya **LOADING…** ina mstari wa pili wenye rangi ya **magenta** ambayo haipo popote pengine kwenye mchezo. Mstari huo unaandika hatua ya sasa na muda wake, kwa mfano `world - 1.4s`. Ukisubiri zaidi ya sekunde 6 bila hatua mpya, unabadilika kuwa manjano unaopepesa: `STALLED IN shaders (budget 8000ms) FOR 9.0s`.
