@@ -2,6 +2,18 @@
 
 Try the offline downhill runner with daily missions, leaf-token rewards, unlockable cosmetic boost trails, ranks and local best times.
 
+**Preview 1.0.9:** Your report on 1.0.8 answered the question. Two details settled it: the **game's sound was audible** while the screen stayed blue — so the web page is running — and *"Bonyeza tena kuondoka"* **appeared over the blue** — and that message is drawn by Flutter, not by the page. So Flutter can draw on that screen, the page is alive, and the one thing missing is the WebView's own surface. That is a platform-view fault, and it has exactly two possible implementations on Android.
+
+1.0.9 lets you choose between them **on the phone, with no PC**:
+
+- **BACK once** — pause, and the controls are explained.
+- **BACK twice within two seconds** — switches the render path (`HYBRID` ↔ `TEXTURE`) and reloads the game into it.
+- **BACK three times** — exits, as before.
+
+A small yellow line at the bottom (drawn by Flutter, so it is visible even when the game is not) names the current mode and shows what the WebView says it loaded, for example `page: http://127.0.0.1:43853/?native=1 · complete / TANUKI RUSH`. It disappears after 45 seconds and returns for 12 seconds whenever you switch, so it never covers a playable game.
+
+**What to do:** open the game, let the blue screen appear, press **BACK twice**, wait about 15 seconds. If the picture appears in `TEXTURE`, that is the fix and it becomes the default. If both modes stay blue, install `tanuki-rush-arm64-release-impeller-off.apk` from this same release — it is also 1.0.9, so it has the switch too, and it tests Flutter's other rasterizer. Please photograph the screen in each mode; the yellow line makes the photo self-describing.
+
 **Preview 1.0.8:** This one is a real fix plus a screen that can speak for itself. It targets the flat dark-blue screen reported on a Pixel 8 Pro (Android 17). The game waits for the phone's graphics driver to finish preparing its shaders before it shows the title screen, and that wait had **no time limit**. A driver that never answers therefore leaves the loading screen up forever: a flat blue screen with a healthy app behind it, which is exactly what was reported. That wait is now capped at **8 seconds**, and if the driver overruns it the game simply starts anyway, building shaders during the first few frames — a brief stutter instead of a dead screen.
 
 So that the next report settles this instead of extending it, the loading screen now shows a second line naming the step it is on, in a **magenta** used nowhere else in the game (`world - 1.4s`). If nothing changes for 6 seconds it turns into a blinking yellow `STALLED IN <step> FOR 9.0s`. Read it like this:
