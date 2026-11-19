@@ -44,6 +44,41 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // One shared debug keystore for every CI-built APK, so that any two of them
+    // can replace each other with `adb install -r`.
+    //
+    // Gradle generates a fresh debug keystore per machine, and each Actions job
+    // gets a fresh machine, so the preview APK from the `build` job and the
+    // diagnostic APKs from `build-field-apks` and `build-impeller-off` were each
+    // signed with a different key. Installing one over another then fails with
+    // INSTALL_FAILED_UPDATE_INCOMPATIBLE, which costs an uninstall — and an
+    // uninstall erases local progress. This cost a real testing cycle on the
+    // reporting Pixel 8 Pro. Pointing the existing debug signing config at a
+    // checked-out keystore keeps every job on one key without changing which
+    // config either build type uses.
+    //
+    // This is still a debug-grade key published in a public release: it must not
+    // be mistaken for production signing, which needs a securely backed-up
+    // release keystore (see README).
+    val sharedKeystorePath = providers.environmentVariable("TANUKI_SHARED_DEBUG_KEYSTORE").orNull
+    if (!sharedKeystorePath.isNullOrBlank()) {
+        val sharedKeystore = file(sharedKeystorePath)
+        if (sharedKeystore.isFile) {
+            signingConfigs.getByName("debug").apply {
+                storeFile = sharedKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        } else {
+            logger.warn(
+                "TANUKI_SHARED_DEBUG_KEYSTORE points at {} which does not exist; " +
+                    "falling back to this machine's own debug keystore",
+                sharedKeystore,
+            )
+        }
+    }
 }
 
 kotlin {

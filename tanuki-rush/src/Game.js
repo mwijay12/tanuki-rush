@@ -209,7 +209,11 @@ export class Game {
     this.quality = q in QUALITY ? q : 'high';
     this.save.quality = this.quality;
     this._writeSave();
-    this.R.pixelRatio = Math.min(window.devicePixelRatio || 1, Q.pixelRatio);
+    // Set the ceiling, not the ratio: Renderer.resize() now derives the ratio
+    // from the ceiling *and* a total pixel budget, so assigning `pixelRatio`
+    // directly here would be overwritten on the next resize and the quality
+    // setting would silently stop doing anything.
+    this.R.setPixelRatioCap(Q.pixelRatio);
     if (this.post.samples !== Q.samples) { this.post.samples = Q.samples; this.post.setSamples(Q.samples); }
     this.R.resize();
     this.scene.fog.far = 5200 * Q.far;
