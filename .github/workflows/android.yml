@@ -94,6 +94,15 @@ jobs:
         env:
           CHROME_BIN: /usr/bin/google-chrome
         run: ../tools/ci_run.sh npm run test:gameover
+      # Deliberately last of the browser tests: it renders the shipped bundle at
+      # the drawing-buffer size a real phone asks for, on a software rasterizer,
+      # so it is the slowest of them. It asserts only the allocation, and reports
+      # the rest - a SwiftShader result says nothing about a Mali-G715.
+      - name: Draw the bundled game at a phone-sized buffer in Chrome
+        working-directory: tanuki-rush
+        env:
+          CHROME_BIN: /usr/bin/google-chrome
+        run: ../tools/ci_run.sh npm run test:viewport
       - name: Test bundled native-storage bridge and migration in Chrome
         working-directory: tanuki-rush
         env:

@@ -119,18 +119,69 @@ export class PostFX {
     this.scene.add(this.quad);
     this.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this.flash = { r: 1, g: 1, b: 1, a: 0 };
+    this.unavailable = false;
+    this.reason = '';
+    this.checkTarget();
   }
 
   setSize(w, h) {
     this.rt.setSize(Math.max(1, w | 0), Math.max(1, h | 0));
     this.uniforms.uAspect.value = w / Math.max(1, h);
     this.uniforms.uTexel.value.set(1 / w, 1 / h);
+    this.checkTarget();
   }
 
   setSamples(n) {
     this.rt.samples = n;
     this.rt.dispose();
+    this.checkTarget();
   }
+
+  /// Asks the driver whether it could really allocate the offscreen target.
+  ///
+  /// Everything the game draws goes through this target: `render()` draws the
+  /// scene into it and then composites it to the canvas, so a target the driver
+  /// could not afford leaves the composite sampling nothing. That is a screen
+  /// with no picture on it while the game is demonstrably still running, which
+  /// is indistinguishable from several other failures and cost a week to chase.
+  /// Detecting it means the game can fall back to drawing straight to the
+  /// canvas: no post-processing, but a visible, playable game.
+  ///
+  /// The target is half-float and multisampled, so its cost is roughly
+  /// width * height * 8 bytes * samples - the reason [MAX_BUFFER_PIXELS] caps
+  /// the drawing buffer in the first place.
+  checkTarget() {
+    if (this.unavailable) return;
+    const gl = this.renderer.getContext();
+    // Clear anything left over, so the error read below is about this target.
+    while (gl.getError() !== gl.NO_ERROR) { /* drain */ }
+    const w = Math.max(1, this.rt.width);
+    const h = Math.max(1, this.rt.height);
+    const bytes = w * h * 8 * Math.max(1, this.rt.samples || 1);
+    if (bytes > PostFX.MAX_TARGET_BYTES) {
+      this.unavailable = true;
+      this.reason = `target ${w}x${h} x${this.rt.samples} needs ~${Math.round(bytes / 1048576)} MB`;
+      return;
+    }
+    // Touch the framebuffer so the driver actually attempts the allocation.
+    try {
+      this.renderer.setRenderTarget(this.rt);
+      this.renderer.setRenderTarget(null);
+    } catch (error) {
+      this.unavailable = true;
+      this.reason = `setRenderTarget threw: ${error && error.message ? error.message : error}`;
+      return;
+    }
+    const err = gl.getError();
+    if (err !== gl.NO_ERROR) {
+      this.unavailable = true;
+      this.reason = `driver rejected ${w}x${h} x${this.rt.samples} with GL error 0x${err.toString(16)}`;
+    }
+  }
+
+  /// Ceiling for the offscreen target. Above this the game plays without
+  /// post-processing rather than risking a driver that cannot pay for it.
+  static MAX_TARGET_BYTES = 96 * 1024 * 1024;
 
   doFlash(color = 0xffffff, a = 0.6) {
     const c = new THREE.Color(color);
@@ -149,6 +200,14 @@ export class PostFX {
 
   render(scene, camera) {
     const r = this.renderer;
+    if (this.unavailable) {
+      // No offscreen target, so no composite: draw the scene straight to the
+      // canvas. Loses the zoom blur, speed lines, vignette and grading, and
+      // keeps the game visible and playable.
+      r.setRenderTarget(null);
+      r.render(scene, camera);
+      return;
+    }
     r.setRenderTarget(this.rt);
     r.render(scene, camera);
     r.setRenderTarget(null);

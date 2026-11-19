@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { bootNote } from './bootTracer.js';
+import { chooseResolution } from './resolution.js';
 
 // Owns the WebGLRenderer, main scene/camera and the resize logic.
 export class Renderer {
@@ -14,44 +14,50 @@ export class Renderer {
     this.canvas = this.renderer.domElement;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.3, 6000);
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+    this.ratioCap = 1.5;
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, this.ratioCap);
     this.onResize = [];
-    window.addEventListener('resize', () => this.resize());
-    this.resize();
 
     // A driver that drops the context leaves a canvas that still has its size
-    // and paints nothing, which from the outside is indistinguishable from the
-    // page not being drawn at all. Say so, and let the driver restore it.
+    // and paints nothing, which from the outside looks exactly like the page not
+    // being drawn at all. Say so, and let the driver restore it.
     this.contextLost = false;
     this.canvas.addEventListener('webglcontextlost', (event) => {
       event.preventDefault();
       this.contextLost = true;
-      bootNote('WebGL context lost');
-      console.error('[tanuki-web] WebGL context lost; waiting for the driver to restore it');
+      console.error('[tanuki-web] WebGL context lost at ' +
+        this.renderer.getContext().drawingBufferWidth + 'x' +
+        this.renderer.getContext().drawingBufferHeight);
     });
     this.canvas.addEventListener('webglcontextrestored', () => {
       this.contextLost = false;
-      bootNote('WebGL context restored');
       console.warn('[tanuki-web] WebGL context restored');
       this.resize();
     });
+
+    window.addEventListener('resize', () => this.resize());
+    this.resize();
   }
 
   setPixelRatioCap(cap) {
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, cap);
+    this.ratioCap = cap;
     this.resize();
   }
 
   resize() {
     const w = this.container.clientWidth || window.innerWidth;
     const h = this.container.clientHeight || window.innerHeight;
-    this.renderer.setPixelRatio(this.pixelRatio);
+    const r = chooseResolution(w, h, window.devicePixelRatio || 1, this.ratioCap);
+    this.pixelRatio = r.pixelRatio;
+    this.renderer.setPixelRatio(r.pixelRatio);
     this.renderer.setSize(w, h, false);
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.width = w; this.height = h;
-    for (const fn of this.onResize) fn(w * this.pixelRatio, h * this.pixelRatio);
+    this.bufferWidth = r.width;
+    this.bufferHeight = r.height;
+    for (const fn of this.onResize) fn(r.width, r.height);
   }
 }
